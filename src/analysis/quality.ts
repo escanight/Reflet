@@ -50,9 +50,10 @@ export const DISTANCE_SENSITIVE: MetricId[] = ["noseIntercanthalRatio", "mouthNo
 export const BILATERAL: MetricId[] = [...YAW_SENSITIVE, "mouthLineAngle"];
 
 export const THRESHOLDS = {
-  minShortSidePx: 400,
-  faceEyeDistancePx: { block: 28, warn: 45 },
-  sharpness: { block: 0.02, warn: 0.06 },
+  // Distance entre les centres des yeux, en pixels : en dessous de 18 px, le modèle
+  // ne distingue plus les coins des yeux ; entre 18 et 40 px, mesure moins précise.
+  faceEyeDistancePx: { block: 18, warn: 40 },
+  sharpness: { block: 0.008, warn: 0.05 },
   meanLuma: { low: 0.18, high: 0.85 },
   clipped: { warn: 0.08, block: 0.25 },
   lateralLight: { warn: 0.3 },
@@ -208,13 +209,7 @@ export function evaluateQuality(px: PixelQuality, ctx: CaptureContext, rollDeg: 
   const T = THRESHOLDS;
   const issues: QualityIssue[] = [];
 
-  if (ctx.imageShortSide < T.minShortSidePx) {
-    issues.push({
-      id: "resolution", severity: "block", affects: "all",
-      message: "La photo est trop petite pour mesurer quoi que ce soit.",
-      advice: `Utilise une photo d'au moins ${T.minShortSidePx} pixels sur son plus petit côté.`,
-    });
-  }
+  // Pas de taille minimale d'image : seule compte la taille du VISAGE (contrôle ci-dessous).
   if (ctx.faceCount !== undefined && ctx.faceCount > 1) {
     issues.push({
       id: "faces", severity: "block", affects: "all",

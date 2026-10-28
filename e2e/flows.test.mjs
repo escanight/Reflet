@@ -2,7 +2,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
-import { writeFileSync, mkdtempSync, existsSync } from "node:fs";
+import { writeFileSync, mkdtempSync, existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "playwright";
@@ -224,5 +224,31 @@ test("photo choisie pendant que la caméra démarre : l'erreur de caméra n'écr
   await page.getByTestId("file-gallery").first().setInputFiles(join(FIX, "visage-synthetique-1.jpg"));
   await page.waitForTimeout(900);
   await page.locator(".landmark-canvas").waitFor({ timeout: 5000 });
+  await ctx.close();
+});
+
+test("petite photo (295 px de large) : analysée, pas refusée", async () => {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await ctx.newPage();
+  await page.addInitScript(forceManual);
+  await page.goto(`${ORIGIN}/`);
+  await onboard(page);
+  await page.goto(`${ORIGIN}/#analyse`);
+  await page.getByTestId("file-gallery").first().setInputFiles(join(FIX, "petite-photo-295.jpg"));
+  const c = page.locator(".landmark-canvas");
+  await c.waitFor();
+  const ORDER = ["eyeOuterL", "eyeInnerL", "eyeInnerR", "eyeOuterR", "alarL", "alarR", "subnasale", "mouthL", "mouthR", "stomion", "menton"];
+  const pts = JSON.parse(readFileSync(join(FIX, "points.json")))[0];
+  const k = 295 / 1000;
+  for (const id of ORDER) {
+    const box = await c.boundingBox();
+    const W = await c.evaluate((el) => el.width);
+    await page.mouse.click(box.x + pts[id].x * k * (box.width / W), box.y + pts[id].y * k * (box.width / W));
+  }
+  await page.getByRole("button", { name: "Valider les repères" }).click();
+  await page.getByRole("heading", { name: "Ton résultat" }).waitFor();
+  const text = await page.locator("#view").innerText();
+  assert.doesNotMatch(text, /trop petite/);
+  assert.match(await page.locator(".gauge-value").innerText(), /\d/);
   await ctx.close();
 });

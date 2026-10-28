@@ -230,3 +230,11 @@ test("photo unique analysée sous 3 cadrages : jamais « fiable », valeurs affi
   assert.ok(s.observations.some((o) => o.level === "confirm" && o.estimate !== undefined));
   assert.ok(s.observations.some((o) => o.influences.some((t) => /plusieurs cadrages/.test(t))));
 });
+
+test("petite photo (≈300 px) où le visage est net : acceptée", () => {
+  const px = { eyeDistancePx: 60, sharpness: 0.5, meanLuma: 0.4, clipped: 0, lateralLight: 0 };
+  const issues = evaluateQuality(px, goodCtx({ imageShortSide: 295 }), 0);
+  assert.ok(!issues.some((i) => i.severity === "block"), JSON.stringify(issues));
+  const tiny = evaluateQuality({ ...px, eyeDistancePx: 12 }, goodCtx({ imageShortSide: 295 }), 0);
+  assert.ok(tiny.some((i) => i.id === "faceSize" && i.severity === "block"));
+});

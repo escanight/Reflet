@@ -91,6 +91,10 @@ Voir `docs/ARCHITECTURE.md` pour les décisions et `docs/VALIDATION.md` pour ce 
 
 ## Journal des corrections
 
+**2.1.1**
+- Plus aucune taille d'image minimale : seule la taille du visage compte, avec un refus seulement sous 18 px entre les yeux. Une petite photo nette passe.
+- Seuil de flou assoupli pour les webcams.
+
 **2.1.0**
 - **Corrigé :** l'ancienne version restait en cache et rouvrait le placement manuel des 11 points. Le cache passe désormais par le réseau d'abord, et l'app se recharge d'elle-même quand une mise à jour arrive.
 - **Plus de bascule automatique vers les 11 points :**
