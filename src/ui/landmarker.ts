@@ -225,7 +225,7 @@ export function createLandmarker(opts: LandmarkerOptions): HTMLElement {
     h("div", { class: "landmark-controls" }, undoBtn, pad),
     errors,
     h("div", { class: "button-row" }, button("Abandonner cette photo", opts.onCancel, { variant: "ghost" }), validateBtn),
-    h("p", { class: "muted small" }, icon("info", 14), " Les points sont placés sur votre appareil. Rien n'est envoyé."),
+    h("p", { class: "muted small" }, icon("info", 14), " Les points sont placés sur ton téléphone. Rien n'est envoyé."),
   );
   redraw();
   refreshPanel();

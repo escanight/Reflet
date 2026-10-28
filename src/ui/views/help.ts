@@ -9,7 +9,7 @@ export function renderHelp(root: HTMLElement): void {
       "Des signes à prendre au sérieux",
       h("p", null, "La dysmorphie corporelle est une préoccupation intense pour un détail de son apparence. D'après le NHS, elle peut se manifester ainsi :"),
       h("ul", null, BDD_SIGNS.map((s) => h("li", null, s))),
-      h("p", null, "Si vous vous reconnaissez, parlez-en à un médecin généraliste ou à un psychologue : c'est un trouble connu, qui se soigne. Une application de mesure du visage n'est pas une aide dans cette situation, et vous pouvez faire une pause."),
+      h("p", null, "Si tu te reconnais, parles-en à un médecin généraliste ou à un psychologue : c'est un trouble connu, qui se soigne. Une application de mesure du visage n'est pas une aide dans cette situation, et tu peux faire une pause."),
     ),
   );
   const byCountry = new Map<string, typeof HELPLINES>();
@@ -17,7 +17,7 @@ export function renderHelp(root: HTMLElement): void {
   root.appendChild(
     card(
       "Numéros utiles",
-      h("p", { class: "muted small" }, "En cas de danger immédiat, appelez les urgences. Vérifiez les numéros de votre pays : les sources publiques ne s'accordent pas toujours."),
+      h("p", { class: "muted small" }, "En cas de danger immédiat, appelle les urgences. Vérifie les numéros de ton pays : les sources publiques ne s'accordent pas toujours."),
       [...byCountry.entries()].map(([country, lines]) =>
         h(
           "div",

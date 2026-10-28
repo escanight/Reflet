@@ -212,34 +212,34 @@ export function evaluateQuality(px: PixelQuality, ctx: CaptureContext, rollDeg: 
     issues.push({
       id: "resolution", severity: "block", affects: "all",
       message: "La photo est trop petite pour mesurer quoi que ce soit.",
-      advice: `Utilisez une photo d'au moins ${T.minShortSidePx} pixels sur son plus petit côté.`,
+      advice: `Utilise une photo d'au moins ${T.minShortSidePx} pixels sur son plus petit côté.`,
     });
   }
   if (ctx.faceCount !== undefined && ctx.faceCount > 1) {
     issues.push({
       id: "faces", severity: "block", affects: "all",
       message: "Plusieurs visages ont été détectés.",
-      advice: "Reflet n'analyse que votre propre visage, seul dans le cadre.",
+      advice: "Reflet n'analyse que ton propre visage, seul dans le cadre.",
     });
   }
   if (px.eyeDistancePx < T.faceEyeDistancePx.block) {
     issues.push({
       id: "faceSize", severity: "block", affects: "all",
       message: "Le visage occupe trop peu de place dans l'image.",
-      advice: "Rapprochez le cadrage (zoom ×2 plutôt que se rapprocher) pour que le visage remplisse le cadre.",
+      advice: "Zoome ×2 pour que ton visage remplisse l'ovale.",
     });
   } else if (px.eyeDistancePx < T.faceEyeDistancePx.warn) {
     issues.push({
       id: "faceSize", severity: "warn", affects: "all",
       message: "Le visage est assez petit dans l'image : les repères sont moins précis.",
-      advice: "Recadrez plus serré avec le zoom de l'appareil.",
+      advice: "Zoome un peu plus sur ton visage.",
     });
   }
   if (px.sharpness < T.sharpness.block) {
     issues.push({
       id: "blur", severity: "block", affects: "all",
       message: "La photo est trop floue.",
-      advice: "Nettoyez l'objectif, stabilisez le téléphone (appui ou retardateur) et évitez le mode portrait.",
+      advice: "Nettoie l'objectif, pose le téléphone (ou retardateur) et évite le mode portrait.",
     });
   } else if (px.sharpness < T.sharpness.warn) {
     issues.push({
@@ -252,14 +252,14 @@ export function evaluateQuality(px: PixelQuality, ctx: CaptureContext, rollDeg: 
     issues.push({
       id: "exposure", severity: px.clipped > T.clipped.block ? "block" : "warn", affects: "all",
       message: px.meanLuma < T.meanLuma.low ? "Le visage est sous-exposé (trop sombre)." : px.meanLuma > T.meanLuma.high ? "Le visage est surexposé (trop clair)." : "Une partie du visage est brûlée ou bouchée.",
-      advice: "Placez-vous face à une fenêtre, en lumière du jour indirecte, sans flash.",
+      advice: "Mets-toi face à une fenêtre, en lumière du jour, sans flash.",
     });
   }
   if (px.lateralLight > T.lateralLight.warn) {
     issues.push({
       id: "lateralLight", severity: "warn", affects: BILATERAL,
       message: "L'éclairage vient surtout d'un côté.",
-      advice: "Une lumière de côté crée des ombres qui déplacent les repères et simulent des asymétries. Faites face à la source de lumière.",
+      advice: "Une lumière de côté crée des ombres qui déplacent les repères et simulent des asymétries. Mets-toi face à la lumière.",
     });
   }
   if (Math.abs(rollDeg) > T.rollDeg.warn) {
@@ -276,14 +276,14 @@ export function evaluateQuality(px: PixelQuality, ctx: CaptureContext, rollDeg: 
       issues.push({
         id: "yaw", severity: "warn", affects: YAW_SENSITIVE,
         message: `Le visage est tourné d'environ ${Math.round(yaw)}° sur le côté.`,
-        advice: "Une rotation crée une fausse asymétrie impossible à corriger ensuite : les mesures gauche-droite sont masquées. Regardez droit vers l'objectif.",
+        advice: "Une rotation crée une fausse asymétrie impossible à corriger ensuite : les mesures gauche-droite sont masquées. Regarde droit l'objectif.",
       });
     }
     if (pitch > T.pitchDeg.hide) {
       issues.push({
         id: "pitch", severity: "warn", affects: PITCH_SENSITIVE,
         message: `La tête est levée ou baissée d'environ ${Math.round(pitch)}°.`,
-        advice: "Gardez l'objectif à hauteur des yeux : les proportions verticales sont masquées.",
+        advice: "Garde l'objectif à hauteur des yeux : les proportions verticales sont masquées.",
       });
     }
   }
@@ -292,7 +292,7 @@ export function evaluateQuality(px: PixelQuality, ctx: CaptureContext, rollDeg: 
       issues.push({
         id: "blink", severity: "warn", affects: ["eyeWidthRatio", "eyeWidthDiff", "outerCanthusOffset"],
         message: "Les yeux semblent fermés ou plissés.",
-        advice: "Gardez les yeux ouverts naturellement au moment de la photo.",
+        advice: "Garde les yeux ouverts, naturellement.",
       });
     }
     if (ctx.expression.smile > T.smile || ctx.expression.jawOpen > T.jawOpen) {
@@ -307,14 +307,14 @@ export function evaluateQuality(px: PixelQuality, ctx: CaptureContext, rollDeg: 
     if (!ctx.declared.mouthClosed || !ctx.declared.neutral) {
       issues.push({
         id: "expression", severity: "warn", affects: EXPRESSION_SENSITIVE,
-        message: "Vous avez indiqué que l'expression n'est pas neutre ou que la bouche est ouverte.",
+        message: "Tu as indiqué que l'expression n'est pas neutre ou que la bouche est ouverte.",
         advice: "Les mesures de la bouche sont masquées pour cette photo.",
       });
     }
     if (!ctx.declared.facingCamera) {
       issues.push({
         id: "yaw", severity: "warn", affects: YAW_SENSITIVE,
-        message: "Vous avez indiqué que le visage n'est pas bien de face.",
+        message: "Tu as indiqué que le visage n'est pas bien de face.",
         advice: "Les mesures gauche-droite sont masquées pour cette photo.",
       });
     }
@@ -322,15 +322,15 @@ export function evaluateQuality(px: PixelQuality, ctx: CaptureContext, rollDeg: 
   if (ctx.declared && !ctx.declared.noGlasses) {
     issues.push({
       id: "glasses", severity: "warn", affects: ["eyeWidthRatio", "eyeWidthDiff", "outerCanthusOffset"],
-      message: "Vous portez des lunettes sur la photo.",
-      advice: "Les montures et les verres déplacent ou masquent les coins des yeux ; retirez-les pour les mesures des yeux.",
+      message: "Tu portes des lunettes sur la photo.",
+      advice: "Les montures et les verres déplacent ou masquent les coins des yeux ; retire-les pour les mesures des yeux.",
     });
   }
   if (ctx.distance !== "far") {
     issues.push({
       id: "distance", severity: "warn", affects: DISTANCE_SENSITIVE,
       message: ctx.distance === "near" ? "Photo prise de près (bras tendu)." : "La distance de prise de vue est inconnue.",
-      advice: "De près, le nez paraît environ 30 % plus large qu'à 1,5 m (Ward et al., 2018). Les rapports impliquant la largeur du nez sont masqués. Utilisez le retardateur à ~1,5 m avec le zoom ×2.",
+      advice: "De près, le nez paraît environ 30 % plus large qu'à 1,5 m (Ward et al., 2018). Les rapports impliquant la largeur du nez sont masqués. Pose le téléphone à ~1,5 m avec le retardateur et le zoom ×2.",
     });
   }
   return issues;

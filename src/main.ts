@@ -92,7 +92,7 @@ export async function render(): Promise<void> {
     console.error(e);
     clear(main);
     main.appendChild(
-      h("div", { class: "card" }, h("h1", null, "Un problème est survenu"), h("p", null, "Cette page n'a pas pu s'afficher. Vos données locales ne sont pas affectées."), h("p", null, h("a", { href: "#accueil" }, "Revenir à l'accueil"))),
+      h("div", { class: "card" }, h("h1", null, "Un problème est survenu"), h("p", null, "Cette page n'a pas pu s'afficher. Tes données locales ne sont pas touchées."), h("p", null, h("a", { href: "#accueil" }, "Revenir à l'accueil"))),
     );
   }
   if (ticket !== rendering) return;

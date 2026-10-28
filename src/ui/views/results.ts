@@ -48,7 +48,7 @@ function metricCard(title: string, id: MetricId): HTMLElement {
     title,
     visible ? formatValue(def.kind, o.estimate!) : "—",
     levelBadge(o.level),
-    visible ? `Plage ${formatRange(o)}` : "Non mesurable ici",
+    visible ? `Plage ${formatRange(o)}` : shortReason(o.hiddenReason),
     h("p", null, h("strong", null, def.name), " · ", def.what),
     h("p", null, describe(o)),
     o.influences.length ? h("ul", { class: "small" }, o.influences.map((f) => h("li", null, f))) : null,
@@ -183,4 +183,17 @@ export function renderResults(root: HTMLElement): void {
       }, { variant: "quiet", icon: "trash" }),
     ),
   );
+}
+
+/** Raison courte, lisible sur une carte, du masquage d'une mesure. */
+export function shortReason(r?: string): string {
+  const t = (r ?? "").toLowerCase();
+  if (t.includes("près") || t.includes("distance")) return "Photo prise de près";
+  if (t.includes("expression") || t.includes("sourire")) return "Sourire ou bouche ouverte";
+  if (t.includes("tourné") || t.includes("de face")) return "Tête tournée";
+  if (t.includes("levée") || t.includes("baissée")) return "Tête levée ou baissée";
+  if (t.includes("lunettes")) return "Lunettes";
+  if (t.includes("fermés")) return "Yeux fermés";
+  if (t.includes("marge")) return "Marge d'erreur trop grande";
+  return "Non mesurable ici";
 }

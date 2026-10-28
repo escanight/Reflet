@@ -138,8 +138,8 @@ export const ADVICE: Advice[] = [
     habit: { label: "Écran solaire le matin", weeklyTarget: 5, cue: "Après m'être brossé les dents le matin, j'applique l'écran solaire." },
     budget: {
       minimal: "Tout écran SPF 30+ « large spectre » répond à la recommandation ; la marque n'est pas un critère.",
-      modere: "Choisissez une texture agréable (fluide, gel) : c'est celle que vous utiliserez vraiment.",
-      confortable: "Un écran teinté peut remplacer un produit de teint si vous en utilisez.",
+      modere: "Choisis une texture agréable (fluide, gel) : c'est celle que tu utiliseras vraiment.",
+      confortable: "Un écran teinté peut remplacer un produit de teint si tu en utilises.",
     },
   },
   {
@@ -218,7 +218,7 @@ export const ADVICE: Advice[] = [
       "Tailler le contour régulièrement (la ligne du cou et des joues structure la barbe).",
     ],
     evidence: "expert",
-    limits: "Aucun essai n'a évalué les produits pour barbe ; ce sont des conseils de dermatologues. Le style (longueur, contour) relève de vos goûts.",
+    limits: "Aucun essai n'a évalué les produits pour barbe ; ce sont des conseils de dermatologues. Le style (longueur, contour) relève de tes goûts.",
     sources: [S.aadBeard],
     minutes: 2,
     applies: (p) => p.facialHair === "courte" || p.facialHair === "longue",
@@ -227,9 +227,9 @@ export const ADVICE: Advice[] = [
   {
     id: "brows", category: "presentation", goal: "base",
     title: "Sourcils : entretien simple et sécurité",
-    objective: "Un entretien qui respecte votre style, sans risque pour les yeux.",
+    objective: "Un entretien qui respecte ton style, sans risque pour les yeux.",
     how: [
-      "Si vous le souhaitez : retirer seulement les poils isolés entre les sourcils, à la pince, à la lumière du jour.",
+      "Si tu le souhaites : retire seulement les poils isolés entre les sourcils, à la pince, à la lumière du jour.",
       "Ne jamais utiliser de teinture capillaire permanente sur les sourcils ou les cils.",
     ],
     evidence: "expert",
@@ -238,7 +238,7 @@ export const ADVICE: Advice[] = [
   },
   {
     id: "hairwash", category: "hebdo", goal: "cheveux",
-    title: "Lavage adapté à votre cuir chevelu",
+    title: "Lavage adapté à ton cuir chevelu",
     objective: "Un cuir chevelu propre sans assécher les longueurs.",
     how: [
       "Cuir chevelu gras, cheveux raides : un lavage quotidien est possible.",
@@ -256,9 +256,9 @@ export const ADVICE: Advice[] = [
     title: "Coupe de cheveux : régularité plutôt que « règle de forme du visage »",
     objective: "Une coupe nette et facile à entretenir.",
     how: [
-      "Montrez au coiffeur 2 ou 3 photos de coupes qui vous plaisent sur des cheveux de même texture que les vôtres.",
-      "Demandez combien de temps la coupe reste nette et planifiez le rendez-vous suivant en conséquence.",
-      "Indiquez le temps que vous êtes prêt à consacrer au coiffage chaque matin.",
+      "Montre au coiffeur 2 ou 3 photos de coupes qui te plaisent, sur des cheveux de même texture que les tiens.",
+      "Demande combien de temps la coupe reste nette et planifie le rendez-vous suivant en conséquence.",
+      "Indique le temps que tu es prêt à consacrer au coiffage chaque matin.",
     ],
     evidence: "nonprouve",
     limits: "Aucune preuve n'a été trouvée pour les règles de coupe « selon la forme du visage » : c'est une convention de coiffeur. Une chute de cheveux inhabituelle relève d'un médecin.",
@@ -325,7 +325,7 @@ export const ADVICE: Advice[] = [
     id: "tobacco", category: "bienetre", goal: "base",
     title: "Tabac : le vieillissement se voit",
     objective: "Information, sans jugement.",
-    how: ["Si vous souhaitez arrêter ou réduire, un médecin ou un pharmacien peut vous accompagner (substituts, suivi)."],
+    how: ["Si tu veux arrêter ou réduire, un médecin ou un pharmacien peut t'accompagner (substituts, suivi)."],
     evidence: "plausible",
     limits: "Dans une étude de 79 paires de jumeaux, cinq ans d'écart de tabagisme suffisaient à faire paraître le fumeur plus âgé ; c'est une étude observationnelle.",
     sources: [S.guyuron],
@@ -343,7 +343,7 @@ export const ADVICE: Advice[] = [
   },
   {
     id: "photo", category: "hebdo", goal: "photo",
-    title: "Des photos qui vous ressemblent",
+    title: "Des photos qui te ressemblent",
     objective: "Éviter qu'une déformation optique soit prise pour un trait du visage.",
     how: [
       "Retardateur ou appui à environ 1,5 m, avec le zoom ×2, plutôt qu'à bout de bras.",
@@ -351,12 +351,12 @@ export const ADVICE: Advice[] = [
       "Pour suivre une évolution : mêmes lieu, heure, distance et expression à chaque fois.",
     ],
     evidence: "etabli",
-    limits: "À 30 cm, la base du nez paraît 29 à 30 % plus large qu'à 1,5 m. Cette distorsion vient de l'optique, pas de votre visage.",
+    limits: "À 30 cm, la base du nez paraît 29 à 30 % plus large qu'à 1,5 m. Cette distorsion vient de l'optique, pas de ton visage.",
     sources: [S.ward2018],
   },
   {
     id: "habits", category: "hebdo", goal: "base",
-    title: "Comment Reflet suit vos habitudes",
+    title: "Comment Reflet suit tes habitudes",
     objective: "Rendre les habitudes durables sans pression.",
     how: [
       "Objectifs hebdomadaires (par exemple 5 jours sur 7) avec 2 jours de réserve : un jour manqué ne casse rien.",

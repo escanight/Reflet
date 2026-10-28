@@ -181,7 +181,7 @@ export const EXCLUDED: ReadonlyArray<{ name: string; reason: string }> = [
   { name: "Largeur/hauteur du visage (fWHR), « midface ratio », largeur des mâchoires", reason: "Repères de la mâchoire mal définis de face, forte dépendance à la focale, aucune validation." },
   { name: "Angle de la mâchoire, projection du menton, profil du nez", reason: "Ces mesures exigent une vue de profil ou une mesure 3D : impossibles sur une photo de face." },
   { name: "Valeurs en millimètres", reason: "Une photo sans objet de référence ne donne aucune échelle absolue." },
-  { name: "Forme du visage classée automatiquement", reason: "Aucune preuve pour les règles de coupe « selon la forme du visage » ; vous pouvez l'indiquer vous-même pour des idées de coiffure." },
+  { name: "Forme du visage classée automatiquement", reason: "Aucune preuve pour les règles de coupe « selon la forme du visage » ; c'est une convention de coiffeur." },
   { name: "Analyse de la peau (acné, taches, rides)", reason: "Les modèles de peau sont nettement moins fiables sur les peaux foncées, et ce serait un diagnostic médical." },
   { name: "Âge, sexe, origine, émotion", reason: "Inférences interdites ou inappropriées (AI Act, art. 5 ; RGPD, art. 9) et sans utilité pour vous." },
 ];

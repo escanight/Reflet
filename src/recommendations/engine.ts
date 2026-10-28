@@ -70,11 +70,11 @@ export function buildProgram(profile: Profile, hints?: AnalysisHints): Program {
     if (!profile.adult && a.minorNote) notes.push(a.minorNote);
     const view: AdviceView = { advice: a, optional: optional.has(a.id), notes };
     if (a.id === "photo" && hit.length) {
-      view.reason = "Votre dernière analyse a relevé des conditions de prise de vue qui faussent les mesures.";
+      view.reason = "Ton dernier scan a relevé des conditions de prise de vue qui faussent les mesures.";
     }
-    if (a.id === "acne") view.reason = "Vous avez indiqué une tendance à l'acné.";
-    if (a.id === "shave" || a.id === "beard") view.reason = "D'après votre réponse sur la pilosité du visage.";
-    if (a.id === "tobacco") view.reason = "Vous avez indiqué fumer.";
+    if (a.id === "acne") view.reason = "Tu as indiqué une tendance à l'acné.";
+    if (a.id === "shave" || a.id === "beard") view.reason = "D'après ta réponse sur la pilosité du visage.";
+    if (a.id === "tobacco") view.reason = "Tu as indiqué fumer.";
     return view;
   });
 
