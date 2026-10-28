@@ -91,6 +91,13 @@ Voir `docs/ARCHITECTURE.md` pour les décisions et `docs/VALIDATION.md` pour ce 
 
 ## Journal des corrections
 
+**2.2.0**
+- **Note sur 20**, lisible d'un coup d'œil. Elle additionne :
+  - **Photo /10** : lumière, netteté, angle, distance ;
+  - **Routine /10** : objectifs de la semaine tenus.
+- **Paliers** : En chantier (< 5), Ça chauffe (5–10), Propre (10–15), Trop frais wola (15–20).
+- La note ne juge jamais le visage. La symétrie reste affichée à part, en pourcentage, et les mesures détaillées sont repliées.
+
 **2.1.2**
 - Le code et les styles sont publiés dans des chemins propres à chaque version (`js-<empreinte>/`, `app-<empreinte>.css`) : une ancienne version en cache ne peut plus les remplacer.
 - Les mises à jour sont vérifiées à chaque retour dans l'app installée, avec rechargement automatique.

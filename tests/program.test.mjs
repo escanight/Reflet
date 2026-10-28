@@ -161,3 +161,23 @@ test("indice de symétrie : fourchette honnête, null si rien de mesurable", () 
   assert.ok(s.low <= s.value && s.value <= s.high);
   assert.equal(qualityScore([]).score, 0);
 });
+
+import { note20, tierFor, photoScore10, routineScore10, TIERS } from "../site/js/analysis/summary.js";
+
+test("note sur 20 = photo /10 + routine /10, paliers sans insulte", () => {
+  assert.equal(photoScore10(82), 8);
+  assert.equal(photoScore10(87), 8.5);
+  assert.equal(routineScore10([]), 0);
+  const wed = new Date(2026, 9, 28);
+  let h = createHabit("A", 4, "", undefined, wed);
+  h = toggleDone(toggleDone(h, "2026-10-26"), "2026-10-27"); // 2/4 → 5/10
+  assert.equal(routineScore10([h], wed), 5);
+  const n = note20(82, [h], wed);
+  assert.equal(n.total, 13);
+  assert.equal(n.tier.name, "Propre");
+  assert.equal(tierFor(4.5).name, "En chantier");
+  assert.equal(tierFor(5).name, "Ça chauffe");
+  assert.equal(tierFor(15).name, "Trop frais wola");
+  assert.equal(tierFor(20).name, "Trop frais wola");
+  for (const t of TIERS) assert.doesNotMatch(t.name + t.line, /floco|zgeg|fdp/i);
+});

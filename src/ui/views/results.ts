@@ -5,7 +5,7 @@ import { persistHistory, state } from "../../app/state.js";
 import { go } from "../../app/router.js";
 import { METRICS, SOURCES } from "../../analysis/metrics.js";
 import { formatValue, type MetricObservation } from "../../analysis/observations.js";
-import { leversFor, qualityScore, symmetryIndex } from "../../analysis/summary.js";
+import { leversFor, note20, qualityScore, symmetryIndex } from "../../analysis/summary.js";
 import { appendSession, toStored } from "../../analysis/history.js";
 import { abandonCapture, lastScanXp } from "./analyse.js";
 import type { MetricId } from "../../analysis/geometry.js";
@@ -99,7 +99,8 @@ export function renderResults(root: HTMLElement): void {
     root.appendChild(notice("block", h("p", null, [...new Set(r.blockedReasons)].join(" "))));
   }
 
-  // Héros
+  // Héros : la note sur 20 (photo + routine), jamais une note du visage.
+  const note = note20(quality.score, state.habits);
   const hero = h("section", { class: "hero-card" });
   const cap = state.capture;
   if (cap && cap.images.length && cap.photos.length) {
@@ -108,27 +109,28 @@ export function renderResults(root: HTMLElement): void {
     hero.appendChild(c);
   }
   hero.appendChild(
-    h("div", { class: "hero-side" },
-      gauge(sym.value, "Symétrie"),
-      h("p", { class: "hero-prec" }, dots(sym.precision), sym.low !== null ? ` ${sym.low}–${sym.high} %` : sym.precision === 1 ? " indicatif" : ""),
+    h("div", { class: "hero-side note-side", "data-testid": "note20" },
+      h("p", { class: "note-big" }, h("span", null, fmtNote(note.total)), h("small", null, "/20")),
+      h("p", { class: "tier" }, note.tier.name),
+      h("p", { class: "muted small center" }, note.tier.line),
     ),
   );
   root.appendChild(hero);
 
   root.appendChild(
-    h("div", { class: "stat-grid" },
-      card("Qualité photo", `${quality.score}/100`, quality.score >= 85 ? 3 : quality.score >= 60 ? 2 : 1, quality.score >= 85 ? "Top" : "Touche pour un conseil",
-        quality.tip ? h("p", null, quality.tip) : h("p", null, "Netteté, lumière et pose : parfait."),
-        h("p", { class: "small muted" }, "Une photo propre = des mesures plus précises.")),
-      metricCard("Yeux", "eyeWidthRatio", "œil / écart"),
-      metricCard("Bas du visage", "lowerFaceRatio", "lèvre / menton"),
-      metricCard("Nez", "noseIntercanthalRatio", "nez / écart des yeux"),
+    h("section", { class: "halves" },
+      half("Photo", note.photo, quality.short ?? "Lumière, netteté, angle : parfait.", null),
+      half("Routine", note.routine, state.habits.length ? "Tes habitudes de la semaine." : "Ajoute des habitudes pour remplir cette moitié.", state.habits.length ? "#suivi" : "#programme"),
     ),
   );
 
   root.appendChild(
+    h("p", { class: "sym-chip" }, "Symétrie du visage : ", h("strong", null, sym.value === null ? "—" : `${sym.value}\u00a0%`), " ", dots(sym.precision)),
+  );
+
+  root.appendChild(
     h("section", { class: "levers" },
-      h("h2", { class: "section-title" }, "Pour progresser"),
+      h("h2", { class: "section-title" }, "Pour monter ta note"),
       h("div", { class: "lever-row" }, leversFor(r).map((l) => h("a", { href: "#programme", class: "lever" }, icon("arrow", 16), l.label))),
     ),
   );
@@ -137,12 +139,17 @@ export function renderResults(root: HTMLElement): void {
   root.appendChild(
     h("section", { class: "card compact" },
       details(
-        "Détails",
+        "Mesures du visage (détail)",
+        h("div", { class: "stat-grid" },
+          metricCard("Yeux", "eyeWidthRatio", "œil / écart"),
+          metricCard("Bas du visage", "lowerFaceRatio", "lèvre / menton"),
+          metricCard("Nez", "noseIntercanthalRatio", "nez / écart des yeux"),
+        ),
         h("ul", { class: "metric-rows" }, allIds.map((id) => {
           const o = obs(id);
           return h("li", null, h("span", null, METRICS[id].name), h("span", { class: "metric-row-right" }, valueText(o), dots(precisionOf(o))));
         })),
-        h("p", { class: "small muted" }, "La symétrie résume les écarts gauche-droite ; 100 % n'est pas un idéal. Ce n'est pas une note de beauté. ≈ = marge d'erreur large (lumière, angle, distance)."),
+        h("p", { class: "small muted" }, "La note sur 20 ne juge pas ton visage : elle additionne la qualité de ta photo et ta routine. La symétrie résume les écarts gauche-droite ; 100\u00a0% n'est pas un idéal. ≈ = marge d'erreur large."),
         sourceList([SOURCES.rhodes2006, SOURCES.ward2018]),
       ),
     ),
@@ -172,4 +179,16 @@ export function renderResults(root: HTMLElement): void {
       }, { variant: "quiet", icon: "trash" }),
     ),
   );
+}
+
+export function fmtNote(v: number): string {
+  return v.toLocaleString("fr-FR", { maximumFractionDigits: 1 });
+}
+
+function half(title: string, v: number, hint: string, href: string | null): HTMLElement {
+  const bar = h("span", { class: "half-bar" }, h("span", { class: "half-fill", "data-pct": String(v * 10) }));
+  const inner = [h("span", { class: "half-title" }, title), h("span", { class: "half-value" }, `${fmtNote(v)}/10`), bar, h("span", { class: "half-hint" }, hint)];
+  const el = href ? h("a", { href, class: "half" }, ...inner) : h("div", { class: "half" }, ...inner);
+  queueMicrotask(() => el.querySelectorAll<HTMLElement>(".half-fill").forEach((f) => (f.style.width = `${f.dataset.pct}%`)));
+  return el;
 }

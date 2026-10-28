@@ -527,3 +527,18 @@ fieldset.choices legend { font-weight: 650; margin-bottom: .5rem; padding: 0; }
 .dot { width: 7px; height: 7px; border-radius: 50%; background: #3a3f46; }
 .dot.on { background: var(--accent); }
 .hero-prec { color: var(--muted); font-size: .85rem; margin: .4rem 0 0; display: flex; align-items: center; gap: .3rem; }
+.note-side { gap: .2rem; }
+.note-big { margin: 0; display: flex; align-items: baseline; gap: .15rem; }
+.note-big span { font-size: 3.4rem; font-weight: 900; letter-spacing: -.04em; line-height: 1; background: linear-gradient(135deg, #f6e2b8, var(--accent) 55%, #c79f5c); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.note-big small { font-size: 1.1rem; color: var(--muted); font-weight: 700; }
+.tier { margin: .2rem 0 0; font-size: 1.15rem; font-weight: 850; text-align: center; }
+.halves { display: grid; grid-template-columns: 1fr 1fr; gap: .7rem; margin-bottom: .8rem; }
+.half { display: flex; flex-direction: column; gap: .35rem; padding: .9rem 1rem; border-radius: 20px; background: var(--surface); border: 1px solid var(--line); color: var(--text); text-decoration: none; }
+.half-title { color: var(--muted); font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; font-weight: 650; }
+.half-value { font-size: 1.6rem; font-weight: 850; font-variant-numeric: tabular-nums; }
+.half-bar { height: 6px; border-radius: 99px; background: var(--surface-2); overflow: hidden; }
+.half-fill { display: block; height: 100%; width: 0; background: var(--accent); border-radius: 99px; transition: width .6s ease; }
+.half-hint { color: var(--muted); font-size: .8rem; line-height: 1.35; }
+.sym-chip { display: flex; align-items: center; gap: .35rem; justify-content: center; color: var(--muted); font-size: .9rem; margin: 0 0 .4rem; }
+.sym-chip strong { color: var(--text); }
+.card.compact .stat-grid { margin-top: .6rem; }

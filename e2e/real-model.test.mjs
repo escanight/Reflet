@@ -46,11 +46,14 @@ test("modèle réel : photo de la galerie → détection automatique → résult
   assert.equal(await page.locator("header[data-mode]").getAttribute("data-mode"), "auto");
   assert.equal(await page.locator(".landmark-canvas").count(), 0, "pas de repli manuel");
   assert.equal(await page.getByText("Placer les points moi-même").count(), 0);
-  const values = await page.locator(".stat-card-value").allInnerTexts();
-  console.log("VALEURS DES CARTES :", values.join(" | "));
-  assert.ok(values.slice(1).some((v) => v.trim() !== "—"), "au moins une mesure affichée sur une photo unique");
+  const note = await page.getByTestId("note20").innerText();
+  console.log("NOTE :", note.replace(/\n+/g, " | "));
+  assert.match(note, /\/20/);
+  const halves = await page.locator(".half-value").allInnerTexts();
+  console.log("MOITIÉS :", halves.join(" | "));
+  assert.ok(Number.parseFloat(halves[0].replace(",", ".")) > 0, "la photo réelle obtient une note photo");
   await shot(page, "21-resultat-modele-reel");
-  await page.locator(".stat-card").first().click();
+  await page.getByText("Mesures du visage (détail)").click();
   await shot(page, "22-resultat-detail");
   assert.deepEqual(external, [], "aucune requête externe, modèle compris");
   assert.deepEqual(errors, []);

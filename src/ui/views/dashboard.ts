@@ -3,7 +3,7 @@ import { button, icon, linkButton } from "../components.js";
 import { saveHabits, state } from "../../app/state.js";
 import { localDateKey, toggleDone, weekProgress } from "../../habits/tracker.js";
 import { computeXp, rankFor } from "../../app/progress.js";
-import { symmetryIndex } from "../../analysis/summary.js";
+import { note20, qualityScore } from "../../analysis/summary.js";
 import { canPromptInstall, isFramed, isIOS, isStandalone, promptInstall } from "../../app/install.js";
 
 export function rankRing(progress: number, rankId: number): SVGElement {
@@ -51,11 +51,11 @@ export function renderDashboard(root: HTMLElement): void {
   // Action principale
   if (adult) {
     const r = state.result;
-    const sym = r ? symmetryIndex(r.observations) : null;
+    const note = r ? note20(qualityScore(state.capture?.photos ?? []).score, state.habits) : null;
     root.appendChild(
       h("a", { href: "#analyse", class: "cta-card", "data-testid": "cta-scan" },
         h("div", { class: "cta-icon" }, icon("scan", 30)),
-        h("div", null, h("p", { class: "cta-title" }, "Lancer un scan"), h("p", { class: "cta-sub" }, r ? `Dernier : symétrie ${sym?.value ?? "—"}${sym?.value !== null && sym ? " %" : ""}` : "3 secondes · 100 % sur ton téléphone")),
+        h("div", null, h("p", { class: "cta-title" }, "Lancer un scan"), h("p", { class: "cta-sub" }, note ? `Dernière note : ${note.total.toLocaleString("fr-FR")}/20 · ${note.tier.name}` : "3 secondes · 100\u00a0% sur ton téléphone")),
       ),
     );
     if (r) root.appendChild(h("div", { class: "button-row" }, linkButton("Voir mon dernier résultat", "#resultats", { variant: "quiet", icon: "arrow" })));

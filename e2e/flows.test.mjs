@@ -74,8 +74,9 @@ test("parcours complet : scan (galerie), résultat, programme, XP, suivi, suppre
   await shot(page, "03-resultat-manuel");
   const text = await page.locator("#view").innerText();
   assert.match(text, /Symétrie/i);
-  assert.match(text, /Qualité photo/i);
-  for (const banned of [/\bsub ?[0-9]/i, /\bPSL\b/, /\bChad\b/i, /\/10\b/]) assert.doesNotMatch(text, banned);
+  assert.match(text, /\/20/);
+  assert.match(text, /En chantier|Ça chauffe|Propre|Trop frais wola/);
+  for (const banned of [/\bsub ?[0-9]/i, /\bPSL\b/, /\bChad\b/i, /floco|zgeg|fdp/i]) assert.doesNotMatch(text, banned);
 
   // Programme
   await page.getByTestId("nav-programme").click();
@@ -248,7 +249,7 @@ test("petite photo (295 px de large) : analysée, pas refusée", async () => {
   await page.getByRole("button", { name: "Valider les repères" }).click();
   await page.getByRole("heading", { name: "Ton résultat" }).waitFor();
   const text = await page.locator("#view").innerText();
-  assert.doesNotMatch(text, /trop petite/);
-  assert.match(await page.locator(".gauge-value").innerText(), /\d/);
+  assert.doesNotMatch(text, /trop petite|minuscule|trop loin/);
+  assert.match(await page.getByTestId("note20").innerText(), /\d.*\/20/s);
   await ctx.close();
 });
