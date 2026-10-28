@@ -1,0 +1,4 @@
+node_modules/
+site/
+public/vendor/mediapipe/*
+!public/vendor/mediapipe/.gitkeep
