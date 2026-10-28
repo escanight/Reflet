@@ -90,7 +90,7 @@ export function renderResults(root: HTMLElement): void {
   const quality = qualityScore(photos);
 
   root.appendChild(
-    h("header", { class: "scan-header row" },
+    h("header", { class: "scan-header row", "data-mode": r.mode, "data-photos": String(r.photos) },
       h("h1", { id: "page-title", tabindex: "-1" }, "Ton résultat"),
       lastScanXp > 0 ? h("span", { class: "xp-pill" }, `+${lastScanXp} XP`) : null,
     ),

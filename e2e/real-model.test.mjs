@@ -43,7 +43,7 @@ test("modèle réel : photo de la galerie → détection automatique → résult
   await page.getByRole("heading", { name: "Ton résultat" }).waitFor({ timeout: 60000 });
   const text = await page.locator("#view").innerText();
   console.log("RÉSULTAT (galerie) :\n" + text.slice(0, 900));
-  assert.match(text, /scan automatique/);
+  assert.equal(await page.locator("header[data-mode]").getAttribute("data-mode"), "auto");
   assert.equal(await page.locator(".landmark-canvas").count(), 0, "pas de repli manuel");
   assert.equal(await page.getByText("Placer les points moi-même").count(), 0);
   const values = await page.locator(".stat-card-value").allInnerTexts();
@@ -80,7 +80,7 @@ test("modèle réel : caméra (vidéo simulée) → rafale de 3 images → résu
   await page.getByRole("heading", { name: "Ton résultat" }).waitFor({ timeout: 60000 });
   const text = await page.locator("#view").innerText();
   console.log("RÉSULTAT (caméra) :\n" + text.slice(0, 600));
-  assert.match(text, /images? · scan automatique/);
+  assert.equal(await page.locator("header[data-mode]").getAttribute("data-mode"), "auto");
   await shot(page, "24-resultat-camera-modele-reel");
   assert.deepEqual(errors, []);
   } catch (e) {
