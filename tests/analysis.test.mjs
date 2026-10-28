@@ -220,3 +220,13 @@ test("la séance conserve les problèmes de prise de vue (sans les photos)", () 
   assert.ok(s.issueIds.includes("distance"));
   assert.ok(!("points" in s));
 });
+
+test("photo unique analysée sous 3 cadrages : jamais « fiable », valeurs affichées si stables", () => {
+  const img = texturedImage();
+  const variants = [0, 1, 2].map((k) => analyzePhoto(`v${k}`, map(P, (p) => ({ x: p.x + k * 0.4, y: p.y })), img, goodCtx()));
+  const s = buildSession(variants, "far", new Date(), { sourcePhotos: 1 });
+  assert.equal(s.photos, 1);
+  assert.ok(s.observations.every((o) => o.level !== "reliable"));
+  assert.ok(s.observations.some((o) => o.level === "confirm" && o.estimate !== undefined));
+  assert.ok(s.observations.some((o) => o.influences.some((t) => /plusieurs cadrages/.test(t))));
+});

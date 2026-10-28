@@ -39,5 +39,5 @@ Reflet est un site **statique**, sans serveur applicatif, sans compte, sans base
 
 - **Hébergeur compromis.** Toute application web peut être modifiée par celui qui contrôle le serveur. Pour s'en protéger : accès restreints, déploiement depuis un dépôt signé, code source public et vérifiable.
 - **Appareil déverrouillé.** Une personne qui a le téléphone en main voit les habitudes et l'historique, s'il est activé. Le chiffrement protège seulement contre une lecture des fichiers bruts.
-- **Fichier du modèle MediaPipe.** Son empreinte SHA-256 est affichée à l'installation. Consignez-la et fixez-la avec `FACE_LANDMARKER_SHA256`.
+- **Fichier du modèle MediaPipe.** Son empreinte SHA-256 (`64184e22…0bc9ff`) est vérifiée à chaque construction par la CI : un modèle modifié fait échouer la mise en ligne.
 - **Visionneuses intégrées.** Une application tierce qui affiche Reflet dans un cadre (aperçu de chat, par exemple) peut interdire la caméra ou les fichiers. C'est une protection de cette application, qu'une page web ne peut pas et ne doit pas contourner.

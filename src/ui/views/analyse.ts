@@ -11,7 +11,7 @@ import { createCamera, cameraSupported, CAMERA_ERROR_TEXT, galleryInput } from "
 import { analysesInLast24h, endCapture, logAnalysis, rewardScan, saveDistancePref, state } from "../../app/state.js";
 import { go } from "../../app/router.js";
 import { weekKey } from "../../app/progress.js";
-import { loadImageFile, ImageInputError, wipeImage, type LoadedImage } from "../../image/input.js";
+import { cropVariant, loadImageFile, ImageInputError, wipeImage, type LoadedImage } from "../../image/input.js";
 import { checkAvailability, detect, loadDetector } from "../../analysis/detector.js";
 import { analyzePhoto, buildSession, InvalidPointsError, type PhotoAnalysis } from "../../analysis/observations.js";
 import { qualityScore } from "../../analysis/summary.js";
@@ -224,6 +224,8 @@ async function processFiles(files: File[], source: "camera" | "gallery"): Promis
   const photos: PhotoAnalysis[] = [];
   const kept: LoadedImage[] = [];
   let shownMesh = false;
+  let firstMesh: Point[] = [];
+  let firstCtx: CaptureContext | null = null;
   let faceless = 0;
   let lastError = "";
   try {
@@ -241,6 +243,7 @@ async function processFiles(files: File[], source: "camera" | "gallery"): Promis
       if (!shownMesh) {
         await revealMesh(det.landmarksPx, img);
         shownMesh = true;
+        firstMesh = det.landmarksPx;
       }
       const ctx: CaptureContext = {
         mode: "auto", distance, imageShortSide: img.shortSideOriginal,
@@ -248,6 +251,7 @@ async function processFiles(files: File[], source: "camera" | "gallery"): Promis
       };
       try {
         const a = analyzePhoto(`photo-${i + 1}`, det.points, img.pixels, ctx);
+        firstCtx ??= ctx;
         photos.push(a);
         kept.push(img);
       } catch (e) {
@@ -263,6 +267,31 @@ async function processFiles(files: File[], source: "camera" | "gallery"): Promis
   }
 
   if (!alive()) return images.forEach(wipeImage);
+
+  // Photo unique : deux recadrages supplémentaires mesurent la stabilité réelle du repérage.
+  const sourcePhotos = photos.length;
+  if (photos.length === 1 && firstMesh.length) {
+    setStep("Vérification de la stabilité…");
+    const base = kept[0];
+    const xs = firstMesh.map((p) => p.x), ys = firstMesh.map((p) => p.y);
+    const fx = Math.min(...xs), fy = Math.min(...ys), fw = Math.max(...xs) - fx, fh = Math.max(...ys) - fy;
+    const cx = fx + fw / 2, cy = fy + fh / 2;
+    for (const [k, margin, dx] of [[1, 0.9, 0.03], [2, 0.55, -0.03]] as const) {
+      const size = Math.max(fw, fh) * (1 + 2 * margin);
+      const variant = cropVariant(base, { x: cx - size / 2 + dx * fw, y: cy - size / 2, w: size, h: size }, `v${k}`);
+      try {
+        const det = await detect(variant.canvas);
+        if (det.points && det.faceCount > 0) {
+          photos.push(analyzePhoto(`variante-${k}`, det.points, variant.pixels, { ...firstCtx!, imageShortSide: base.shortSideOriginal, pose: det.pose, expression: det.expression, faceCount: det.faceCount }));
+        }
+      } catch {
+        /* variante ignorée */
+      }
+      wipeImage(variant);
+      if (!alive()) return kept.forEach(wipeImage);
+    }
+  }
+
   if (!photos.length) {
     kept.forEach(wipeImage);
     const msg = faceless ? "Aucun visage détecté. Place ton visage dans l'ovale, de face, bien éclairé." : lastError || "Analyse impossible.";
@@ -275,13 +304,14 @@ async function processFiles(files: File[], source: "camera" | "gallery"): Promis
   const elapsed = performance.now() - started;
   if (elapsed < 1800) await sleep(1800 - elapsed);
   if (!alive()) return kept.forEach(wipeImage);
-  finish(photos, kept, distance);
+  finish(photos, kept, distance, sourcePhotos);
 }
 
-function finish(photos: PhotoAnalysis[], images: LoadedImage[], distance: CaptureContext["distance"]): void {
+function finish(photos: PhotoAnalysis[], images: LoadedImage[], distance: CaptureContext["distance"], sourcePhotos?: number): void {
   const usable = photos.filter((p) => !p.blocked);
   state.capture = { distance, declared: DECLARED, photos: usable.length ? usable : photos, images, fingerprints: new Set(images.map((i) => i.fingerprint)), finished: true };
-  state.result = buildSession(usable, distance);
+  const sources = Math.min(sourcePhotos ?? usable.length, usable.length);
+  state.result = buildSession(usable, distance, new Date(), { sourcePhotos: sources });
   state.result.blockedReasons = photos.filter((p) => p.blocked).flatMap((p) => p.issues.filter((i) => i.severity === "block").map((i) => i.message));
   logAnalysis();
   const q = qualityScore(photos);

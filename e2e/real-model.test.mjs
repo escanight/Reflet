@@ -44,6 +44,9 @@ test("modèle réel : photo de la galerie → détection automatique → résult
   console.log("RÉSULTAT (galerie) :\n" + text.slice(0, 900));
   assert.match(text, /scan automatique/);
   assert.equal(await page.locator(".landmark-canvas").count(), 0, "pas de repli manuel");
+  const values = await page.locator(".stat-card-value").allInnerTexts();
+  console.log("VALEURS DES CARTES :", values.join(" | "));
+  assert.ok(values.slice(1).some((v) => v.trim() !== "—"), "au moins une mesure affichée sur une photo unique");
   await shot(page, "21-resultat-modele-reel");
   await page.locator(".stat-card").first().click();
   await shot(page, "22-resultat-detail");

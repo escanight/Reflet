@@ -37,7 +37,9 @@ jobs:
       - name: Navigateur de test
         run: npx playwright install --with-deps chromium
 
-      - name: Modèle MediaPipe (auto-hébergé)
+      - name: Modèle MediaPipe (auto-hébergé, empreinte vérifiée)
+        env:
+          FACE_LANDMARKER_SHA256: 64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff
         run: npm run setup:vendor 2>&1 | tee test-vendor.log
 
       - name: Photo de test réelle (jeu de test officiel MediaPipe) et vidéo pour la caméra simulée

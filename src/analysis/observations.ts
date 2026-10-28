@@ -99,7 +99,12 @@ function affects(issue: QualityIssue, m: MetricId): boolean {
   return issue.affects === "all" || issue.affects.includes(m);
 }
 
-export function observeMetric(m: MetricId, photos: readonly PhotoAnalysis[]): MetricObservation {
+export interface ObserveOptions {
+  /** Nombre de photos SOURCES distinctes (les variantes de cadrage d'une même photo comptent pour une). */
+  sourcePhotos?: number;
+}
+
+export function observeMetric(m: MetricId, photos: readonly PhotoAnalysis[], opts: ObserveOptions = {}): MetricObservation {
   const def = METRICS[m];
   const influences = new Set<string>();
   const hiding = new Set<string>();
@@ -148,11 +153,12 @@ export function observeMetric(m: MetricId, photos: readonly PhotoAnalysis[]): Me
     downgraded = true;
   }
   if (disagreement) influences.add("Les photos ne concordent pas entre elles : les conditions ont probablement changé.");
-  if (n < 3) influences.add(n === 1 ? "Une seule photo : la répétabilité n'a pas pu être vérifiée." : "Deux photos seulement : trois photos concordantes sont nécessaires pour une mesure fiable.");
+  const sources = opts.sourcePhotos ?? n;
+  if (sources < 3) influences.add(sources === 1 ? (n > 1 ? "Une seule photo, analysée sous plusieurs cadrages : la stabilité du repérage est mesurée, pas celle de la prise de vue." : "Une seule photo : la répétabilité n'a pas pu être vérifiée.") : "Deux photos seulement : trois photos concordantes sont nécessaires pour une mesure fiable.");
 
   let level: Level;
   if (w > def.confirmWidth) level = "uncertain";
-  else if (n < 3 || downgraded || disagreement || w > def.reliableWidth) level = "confirm";
+  else if (n < 3 || sources < 3 || downgraded || disagreement || w > def.reliableWidth) level = "confirm";
   else level = "reliable";
 
   const obs: MetricObservation = { id: m, level, photosUsed: n, influences: [...influences], disagreement };
@@ -179,15 +185,15 @@ export interface SessionResult {
   blockedReasons?: string[];
 }
 
-export function buildSession(photos: readonly PhotoAnalysis[], distance: CaptureContext["distance"], now = new Date()): SessionResult {
+export function buildSession(photos: readonly PhotoAnalysis[], distance: CaptureContext["distance"], now = new Date(), opts: ObserveOptions = {}): SessionResult {
   const ids = Object.keys(METRICS) as MetricId[];
   return {
     createdAt: now.toISOString(),
     mode: photos.some((p) => p.mode === "manual") ? "manual" : "auto",
     distance,
-    photos: photos.length,
+    photos: opts.sourcePhotos ?? photos.length,
     photosBlocked: photos.filter((p) => p.blocked).length,
-    observations: ids.map((m) => observeMetric(m, photos)),
+    observations: ids.map((m) => observeMetric(m, photos, opts)),
     issueIds: [...new Set(photos.flatMap((p) => p.issues.map((i) => i.id)))],
   };
 }

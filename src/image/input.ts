@@ -138,3 +138,23 @@ export function wipeImage(img: LoadedImage | null | undefined): void {
   img.canvas.height = 0;
   (img.pixels.data as Uint8ClampedArray).fill?.(0);
 }
+
+/**
+ * Variante recadrée d'une image (pour mesurer la stabilité du repérage sur
+ * une photo unique). Les pixels sont copiés depuis le canvas de travail :
+ * aucune nouvelle source, aucune métadonnée.
+ */
+export function cropVariant(src: LoadedImage, rect: { x: number; y: number; w: number; h: number }, tag: string): LoadedImage {
+  const x = Math.max(0, Math.round(rect.x));
+  const y = Math.max(0, Math.round(rect.y));
+  const w = Math.max(16, Math.min(src.width - x, Math.round(rect.w)));
+  const hgt = Math.max(16, Math.min(src.height - y, Math.round(rect.h)));
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = hgt;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) throw new ImageInputError("Mémoire insuffisante pour l'analyse.");
+  ctx.drawImage(src.canvas, x, y, w, hgt, 0, 0, w, hgt);
+  const data = ctx.getImageData(0, 0, w, hgt).data;
+  return { canvas, pixels: { width: w, height: hgt, data }, width: w, height: hgt, shortSideOriginal: src.shortSideOriginal, fingerprint: `${src.fingerprint}:${tag}`, format: src.format, decoder: src.decoder };
+}
