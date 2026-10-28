@@ -121,6 +121,7 @@ function renderCamera(root: HTMLElement, error?: string): void {
     },
     onError: (e) => {
       stopCamera = null;
+      if (phase.kind !== "camera") return; // une analyse a déjà pris le relais
       setPhase({ kind: "pick", error: CAMERA_ERROR_TEXT[e] });
     },
   });

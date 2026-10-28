@@ -209,3 +209,20 @@ test("sans modèle automatique : pas de bascule forcée vers les 11 points, seul
   await page.locator(".landmark-canvas").waitFor();
   await ctx.close();
 });
+
+test("photo choisie pendant que la caméra démarre : l'erreur de caméra n'écrase pas l'analyse", async () => {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await ctx.newPage();
+  await page.addInitScript(forceManual);
+  // Caméra qui échoue lentement (500 ms), après le choix de la photo.
+  await page.addInitScript(() => {
+    navigator.mediaDevices.getUserMedia = () => new Promise((_, rej) => setTimeout(() => rej(new DOMException("x", "NotAllowedError")), 500));
+  });
+  await page.goto(`${ORIGIN}/`);
+  await onboard(page);
+  await page.getByTestId("cta-scan").click();
+  await page.getByTestId("file-gallery").first().setInputFiles(join(FIX, "visage-synthetique-1.jpg"));
+  await page.waitForTimeout(900);
+  await page.locator(".landmark-canvas").waitFor({ timeout: 5000 });
+  await ctx.close();
+});

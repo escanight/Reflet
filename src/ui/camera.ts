@@ -126,6 +126,8 @@ export function createCamera(opts: CameraOptions): { element: HTMLElement; stop:
         video: { facingMode: { ideal: facing }, width: { ideal: 1920 }, height: { ideal: 1440 } },
       });
     } catch (e) {
+      // Caméra déjà abandonnée (photo choisie dans la galerie entre-temps) : l'erreur ne concerne plus personne.
+      if (stopped) return;
       stop();
       opts.onError(classifyCameraError(e));
       return;
