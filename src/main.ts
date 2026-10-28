@@ -13,6 +13,7 @@ import { renderTracker } from "./ui/views/tracker.js";
 import { renderGlossary } from "./ui/views/glossary.js";
 import { renderData } from "./ui/views/data.js";
 import { renderHelp } from "./ui/views/help.js";
+import { renderProfile } from "./ui/views/profile.js";
 
 type View = (root: HTMLElement) => void | Promise<void>;
 
@@ -26,22 +27,26 @@ const ROUTES: Record<string, View> = {
   glossaire: renderGlossary,
   donnees: renderData,
   aide: renderHelp,
+  profil: renderProfile,
 };
 
-const NAV: Array<{ route: string; label: string; icon: string }> = [
+const NAV: Array<{ route: string; label: string; icon: string; center?: boolean }> = [
   { route: "accueil", label: "Accueil", icon: "home" },
-  { route: "analyse", label: "Analyse", icon: "scan" },
   { route: "programme", label: "Programme", icon: "list" },
+  { route: "analyse", label: "Scan", icon: "scan", center: true },
   { route: "suivi", label: "Suivi", icon: "calendar" },
-  { route: "glossaire", label: "Savoir", icon: "book" },
+  { route: "profil", label: "Profil", icon: "user" },
 ];
+
+const ACTIVE_ALIAS: Record<string, string> = { resultats: "analyse", glossaire: "profil", donnees: "profil", aide: "profil" };
 
 export function currentRoute(): string {
   const r = location.hash.replace(/^#/, "");
   return r in ROUTES ? r : "accueil";
 }
 
-function renderNav(active: string): HTMLElement {
+function renderNav(route: string): HTMLElement {
+  const active = ACTIVE_ALIAS[route] ?? route;
   return h(
     "nav",
     { class: "tabbar", "aria-label": "Navigation principale" },
@@ -52,16 +57,10 @@ function renderNav(active: string): HTMLElement {
       NAV.map((n) =>
         h(
           "li",
-          null,
-          h("a", { href: `#${n.route}`, class: n.route === active ? "tab active" : "tab", "aria-current": n.route === active ? "page" : null }, icon(n.icon, 22), h("span", null, n.label)),
+          { class: n.center ? "center-slot" : null },
+          h("a", { href: `#${n.route}`, class: `tab${n.center ? " tab-center" : ""}${n.route === active ? " active" : ""}`, "aria-current": n.route === active ? "page" : null, "data-testid": `nav-${n.route}` }, h("span", { class: "tab-icon" }, icon(n.icon, n.center ? 26 : 22)), h("span", { class: "tab-label" }, n.label)),
         ),
       ),
-    ),
-    h(
-      "div",
-      { class: "nav-secondary" },
-      h("a", { href: "#donnees", class: active === "donnees" ? "active" : "" }, icon("shield", 16), "Mes données"),
-      h("a", { href: "#aide", class: active === "aide" ? "active" : "" }, icon("heart", 16), "Besoin d'en parler ?"),
     ),
   );
 }
@@ -121,8 +120,9 @@ async function boot(): Promise<void> {
   await loadHistory().catch(() => undefined);
   await render();
   // Vérifie en arrière-plan si le modèle local est installé (requête vers la même origine).
-  state.detector = await checkAvailability();
-  if (currentRoute() === "analyse" && !state.capture) await render();
+  // Crochet de test : force le repérage manuel (visages synthétiques des tests).
+  const forceManual = (window as Window & { __REFLET_FORCE_MANUAL__?: boolean }).__REFLET_FORCE_MANUAL__ === true;
+  state.detector = forceManual ? { available: false, reason: "forcé (tests)" } : await checkAvailability();
 }
 
 void boot();

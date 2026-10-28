@@ -10,7 +10,7 @@ import type { Habit } from "../habits/tracker.js";
 import type { LoadedImage } from "../image/input.js";
 import { wipeImage } from "../image/input.js";
 import { DEFAULT_PROFILE, type Profile } from "../recommendations/catalog.js";
-import { sanitizeHabits, sanitizeLog, sanitizeProfile, sanitizeSettings } from "../storage/schema.js";
+import { sanitizeHabits, sanitizeLog, sanitizeProfile, sanitizeSettings, sanitizeWeeks } from "../storage/schema.js";
 import { loadEncrypted, readJSON, saveEncrypted, wipeEverything, writeJSON } from "../storage/store.js";
 
 export interface Settings {
@@ -36,6 +36,10 @@ export interface AppState {
   profileSet: boolean;
   habits: Habit[];
   analysisLog: string[];
+  /** Semaines (clé du lundi) où un scan de bonne qualité a rapporté de l'XP. */
+  scanWeeks: string[];
+  /** Distance de prise de vue choisie sur l'écran caméra. */
+  distancePref: "near" | "far";
   capture: CaptureSession | null;
   result: SessionResult | null;
   history: StoredSession[];
@@ -50,6 +54,8 @@ export const state: AppState = {
   profileSet: readJSON<unknown>("profileSet", false) === true,
   habits: sanitizeHabits(readJSON<unknown>("habits", [])),
   analysisLog: sanitizeLog(readJSON<unknown>("analysisLog", [])),
+  scanWeeks: sanitizeWeeks(readJSON<unknown>("scanWeeks", [])),
+  distancePref: readJSON<unknown>("distancePref", "near") === "far" ? "far" : "near",
   capture: null,
   result: null,
   history: [],
@@ -109,6 +115,20 @@ export async function wipeAll(): Promise<void> {
   state.profileSet = false;
   state.habits = [];
   state.analysisLog = [];
+  state.scanWeeks = [];
+  state.distancePref = "near";
   state.result = null;
   state.history = [];
+}
+
+export function rewardScan(week: string): boolean {
+  if (state.scanWeeks.includes(week)) return false;
+  state.scanWeeks = [...state.scanWeeks, week].slice(-120);
+  writeJSON("scanWeeks", state.scanWeeks);
+  return true;
+}
+
+export function saveDistancePref(d: "near" | "far"): void {
+  state.distancePref = d;
+  writeJSON("distancePref", d);
 }

@@ -1,17 +1,11 @@
 /**
- * Caméra intégrée : viseur en direct, guide ovale, retardateur, bascule
- * avant/arrière. La photo est prise dans la page (getUserMedia) puis passe
- * par la même chaîne de validation que les fichiers importés.
- *
- * Le flux vidéo reste local : il n'est ni enregistré ni transmis, et la
- * caméra est éteinte dès la capture ou dès que l'on quitte l'écran.
- *
- * Certaines visionneuses intégrées interdisent la caméra à toute page web
- * qu'elles affichent : l'erreur est alors détectée et expliquée, sans
- * contournement possible depuis la page.
+ * Viseur de scan : caméra en direct, ovale de cadrage, retardateur, bascule
+ * avant/arrière, accès galerie, et capture en rafale (3 images) pour mesurer
+ * la répétabilité. Le flux reste local et s'éteint dès la capture, en
+ * quittant l'écran ou quand l'app passe en arrière-plan.
  */
 import { h, announce } from "./dom.js";
-import { button, icon, notice } from "./components.js";
+import { icon } from "./components.js";
 
 export type CameraError = "unsupported" | "denied" | "blocked" | "notfound" | "busy" | "unknown";
 
@@ -29,55 +23,103 @@ export function classifyCameraError(e: unknown): CameraError {
 }
 
 export const CAMERA_ERROR_TEXT: Record<CameraError, string> = {
-  unsupported: "Ce navigateur ne permet pas d'utiliser la caméra dans une page web.",
-  denied: "L'accès à la caméra a été refusé. Autorisez-le dans les réglages du site (icône à gauche de l'adresse), ou par le réglage de l'application qui affiche Reflet.",
-  blocked: "L'application qui affiche Reflet interdit l'accès à la caméra pour les pages qu'elle affiche. Ce blocage ne peut pas être levé depuis Reflet : utilisez « Choisir une photo », ou ouvrez Reflet installée sur votre écran d'accueil.",
-  notfound: "Aucune caméra n'a été trouvée sur cet appareil.",
-  busy: "La caméra est déjà utilisée par une autre application. Fermez-la, puis réessayez.",
-  unknown: "La caméra n'a pas pu démarrer.",
+  unsupported: "Ton navigateur ne donne pas accès à la caméra. Choisis une photo dans ta galerie.",
+  denied: "Accès à la caméra refusé. Autorise-le dans les réglages du navigateur (icône à gauche de l'adresse), ou choisis une photo.",
+  blocked: "L'application qui affiche Reflet bloque la caméra. Ouvre Reflet installée sur ton écran d'accueil, ou choisis une photo.",
+  notfound: "Aucune caméra trouvée sur cet appareil.",
+  busy: "La caméra est utilisée par une autre application. Ferme-la et réessaie.",
+  unknown: "La caméra n'a pas pu démarrer. Réessaie ou choisis une photo.",
 };
 
+export const BURST = { frames: 3, intervalMs: 280 } as const;
+
 export interface CameraOptions {
-  onCapture: (file: File) => void;
-  onCancel: () => void;
+  distance: "near" | "far";
+  onDistance: (d: "near" | "far") => void;
+  onCapture: (files: File[]) => void;
+  onGallery: (file: File) => void;
   onError: (err: CameraError) => void;
 }
 
-/** Monte le viseur ; renvoie l'élément et une fonction d'arrêt (à appeler en quittant l'écran). */
+async function frameToFile(video: HTMLVideoElement, i: number): Promise<File | null> {
+  const c = document.createElement("canvas");
+  c.width = video.videoWidth;
+  c.height = video.videoHeight;
+  const ctx = c.getContext("2d");
+  if (!ctx) return null;
+  // L'aperçu est en miroir pour être naturel ; la photo, elle, n'est pas inversée.
+  ctx.drawImage(video, 0, 0, c.width, c.height);
+  const blob = await new Promise<Blob | null>((r) => c.toBlob(r, "image/jpeg", 0.92));
+  c.width = c.height = 0;
+  return blob ? new File([blob], `scan-${i + 1}.jpg`, { type: "image/jpeg" }) : null;
+}
+
+export function galleryInput(onFile: (f: File) => void, testid = "file-gallery"): HTMLInputElement {
+  const input = h("input", { type: "file", accept: "image/*", class: "file-overlay", "aria-label": "Choisir une photo dans la galerie", "data-testid": testid });
+  input.addEventListener("change", () => {
+    const f = input.files?.[0];
+    if (f) onFile(f);
+    input.value = "";
+  });
+  return input;
+}
+
 export function createCamera(opts: CameraOptions): { element: HTMLElement; stop: () => void } {
   let stream: MediaStream | null = null;
   let facing: "user" | "environment" = "user";
   let countdown: number | undefined;
   let stopped = false;
+  let busy = false;
+  let distance = opts.distance;
 
   const video = h("video", { class: "camera-video", playsinline: true, muted: true, autoplay: true, "aria-label": "Aperçu de la caméra" });
   video.muted = true;
   video.playsInline = true;
-  const guide = h("div", { class: "camera-guide", "aria-hidden": "true" }, h("div", { class: "camera-oval" }));
   const counter = h("div", { class: "camera-count", "aria-live": "assertive" });
-  const status = h("p", { class: "muted small camera-status", role: "status" }, "Démarrage de la caméra…");
-  const stage = h("div", { class: "camera-stage" }, video, guide, counter);
+  const flash = h("div", { class: "camera-flash" });
+  const hint = h("p", { class: "camera-hint", role: "status" }, "Démarrage de la caméra…");
 
-  // Confidentialité : la caméra s'éteint dès que l'application passe en arrière-plan.
+  const distBtn = h("button", { type: "button", class: "chip", "aria-pressed": "false" });
+  const renderDist = () => {
+    distBtn.replaceChildren(icon("scan", 14), distance === "far" ? "Posé à ~1,5 m" : "Bras tendu");
+    distBtn.setAttribute("aria-label", `Distance : ${distance === "far" ? "téléphone posé à environ 1,5 mètre" : "bras tendu"}. Toucher pour changer.`);
+  };
+  renderDist();
+  distBtn.addEventListener("click", () => {
+    distance = distance === "far" ? "near" : "far";
+    opts.onDistance(distance);
+    renderDist();
+  });
+  const timerBtn = h("button", { type: "button", class: "chip", "aria-label": "Retardateur de 10 secondes" }, icon("calendar", 14), "10 s");
+  timerBtn.addEventListener("click", () => timed(10));
+
+  const stage = h(
+    "div",
+    { class: "camera-stage" },
+    video,
+    h("div", { class: "camera-guide", "aria-hidden": "true" }, h("div", { class: "camera-oval" })),
+    h("div", { class: "camera-top" }, distBtn, timerBtn),
+    counter,
+    flash,
+  );
+
   const onHidden = () => {
-    if (document.visibilityState === "hidden" && !stopped) {
-      stop();
-      opts.onCancel();
-    }
+    if (document.visibilityState === "hidden" && !stopped) stop();
   };
   document.addEventListener("visibilitychange", onHidden);
 
-  const stop = () => {
+  function stop(): void {
     stopped = true;
     document.removeEventListener("visibilitychange", onHidden);
     window.clearInterval(countdown);
     stream?.getTracks().forEach((t) => t.stop());
     stream = null;
     video.srcObject = null;
-  };
+  }
 
   async function start(): Promise<void> {
     stream?.getTracks().forEach((t) => t.stop());
+    stopped = false;
     try {
       stream = await navigator.mediaDevices.getUserMedia({
         audio: false,
@@ -97,32 +139,35 @@ export function createCamera(opts: CameraOptions): { element: HTMLElement; stop:
     try {
       await video.play();
     } catch {
-      /* lecture automatique refusée : la vidéo démarrera au premier geste */
+      /* lecture automatique refusée : démarrera au premier geste */
     }
-    status.textContent = "Placez votre visage dans l'ovale, tête droite, à hauteur des yeux.";
+    hint.textContent = "Visage dans l'ovale · tête droite · lumière de face";
   }
 
   async function capture(): Promise<void> {
+    if (busy) return;
     if (!stream || !video.videoWidth) {
-      status.textContent = "La caméra n'est pas encore prête.";
+      hint.textContent = "La caméra n'est pas encore prête.";
       return;
     }
-    const c = document.createElement("canvas");
-    c.width = video.videoWidth;
-    c.height = video.videoHeight;
-    const ctx = c.getContext("2d");
-    if (!ctx) return;
-    // L'aperçu est en miroir pour être naturel ; la photo, elle, n'est pas inversée.
-    ctx.drawImage(video, 0, 0, c.width, c.height);
-    const blob = await new Promise<Blob | null>((r) => c.toBlob(r, "image/jpeg", 0.92));
-    c.width = c.height = 0;
+    busy = true;
+    const files: File[] = [];
+    for (let i = 0; i < BURST.frames; i++) {
+      flash.classList.remove("on");
+      void flash.offsetWidth;
+      flash.classList.add("on");
+      const f = await frameToFile(video, i);
+      if (f) files.push(f);
+      if (i < BURST.frames - 1) await new Promise((r) => setTimeout(r, BURST.intervalMs));
+    }
     stop();
-    if (!blob) {
+    busy = false;
+    if (!files.length) {
       opts.onError("unknown");
       return;
     }
-    announce("Photo prise.");
-    opts.onCapture(new File([blob], "camera.jpg", { type: "image/jpeg" }));
+    announce("Photos prises, analyse en cours.");
+    opts.onCapture(files);
   }
 
   function timed(seconds: number): void {
@@ -139,31 +184,24 @@ export function createCamera(opts: CameraOptions): { element: HTMLElement; stop:
     }, 1000);
   }
 
-  const element = h(
+  const gallery = h(
     "div",
-    { class: "camera" },
-    stage,
-    status,
-    h(
-      "div",
-      { class: "camera-controls" },
-      button("Retourner", () => {
-        facing = facing === "user" ? "environment" : "user";
-        void start();
-      }, { variant: "quiet", icon: "undo" }),
-      h("button", { type: "button", class: "shutter", title: "Prendre la photo", "aria-label": "Prendre la photo", onclick: (() => void capture()) as EventListener }, h("span")),
-      (() => { const b = button("10 s", () => timed(10), { variant: "quiet", icon: "calendar" }); b.setAttribute("aria-label", "Retardateur de 10 secondes"); return b; })(),
-    ),
-    h("p", { class: "muted small" }, icon("info", 14), " Conseil : posez le téléphone à environ 1,5 m, lancez le retardateur, et placez-vous face à une fenêtre."),
-    h("div", { class: "button-row" }, button("Annuler", () => {
+    { class: "round-btn", title: "Galerie" },
+    icon("image", 22),
+    galleryInput((f) => {
       stop();
-      opts.onCancel();
-    }, { variant: "ghost" })),
+      opts.onGallery(f);
+    }),
   );
+  const flip = h("button", { type: "button", class: "round-btn", "aria-label": "Changer de caméra" }, icon("undo", 22));
+  flip.addEventListener("click", () => {
+    facing = facing === "user" ? "environment" : "user";
+    void start();
+  });
+  const shutter = h("button", { type: "button", class: "shutter", "aria-label": "Lancer le scan" }, h("span"));
+  shutter.addEventListener("click", () => void capture());
+
+  const element = h("div", { class: "camera" }, stage, hint, h("div", { class: "camera-controls" }, gallery, shutter, flip));
   void start();
   return { element, stop };
-}
-
-export function cameraErrorNotice(err: CameraError): HTMLElement {
-  return notice(err === "blocked" || err === "unsupported" ? "info" : "warn", h("p", null, CAMERA_ERROR_TEXT[err]));
 }

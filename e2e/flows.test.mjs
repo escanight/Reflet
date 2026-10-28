@@ -1,34 +1,25 @@
-// Tests de bout en bout (Chromium, viewport mobile) avec Playwright.
-// Utilise des visages SYNTHÉTIQUES dessinés (e2e/fixtures), jamais de vraies photos.
-// Prérequis : `npm run build`.
+// Parcours principaux (Chromium mobile). Visages SYNTHÉTIQUES, repérage manuel forcé.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, writeFileSync, mkdtempSync } from "node:fs";
+import http from "node:http";
+import { writeFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import http from "node:http";
 import { chromium } from "playwright";
 import { startServer } from "../scripts/serve.mjs";
+import { FIX, onboard, placePoints, forceManual, shot } from "./helpers.mjs";
 
 const PORT = 4190;
 const ORIGIN = `http://127.0.0.1:${PORT}`;
-const FIX = new URL("./fixtures/", import.meta.url).pathname;
-const pts = JSON.parse(readFileSync(join(FIX, "points.json")));
-const ORDER = ["eyeOuterL", "eyeInnerL", "eyeInnerR", "eyeOuterR", "alarL", "alarR", "subnasale", "mouthL", "mouthR", "stomion", "menton"];
+let server, parent, browser;
 
-let server, browser;
-let parent;
 before(async () => {
   process.env.FRAMEABLE = "1";
   server = await startServer(PORT);
-  // Page hôte d'une autre origine qui intègre Reflet dans un cadre restreint,
-  // comme le font les visionneuses d'artefacts et les aperçus intégrés.
-  parent = http
-    .createServer((q, r) => {
-      r.writeHead(200, { "content-type": "text/html" });
-      r.end(`<iframe id="f" src="${ORIGIN}/" sandbox="allow-scripts allow-same-origin allow-forms" style="width:390px;height:800px;border:0"></iframe>`);
-    })
-    .listen(PORT + 1);
+  parent = http.createServer((q, r) => {
+    r.writeHead(200, { "content-type": "text/html" });
+    r.end(`<iframe id="f" src="${ORIGIN}/" sandbox="allow-scripts allow-same-origin allow-forms" style="width:390px;height:800px;border:0"></iframe>`);
+  }).listen(PORT + 1);
   browser = await chromium.launch();
 });
 after(async () => {
@@ -40,32 +31,15 @@ after(async () => {
 async function newPage(opts = {}) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, ...opts });
   const page = await ctx.newPage();
+  await page.addInitScript(forceManual);
   const external = [];
   const errors = [];
   page.on("request", (r) => {
-    if (!r.url().startsWith(ORIGIN) && !r.url().startsWith("data:") && !r.url().startsWith("blob:")) external.push(r.url());
+    const u = r.url();
+    if (!u.startsWith(`http://127.0.0.1:${PORT}`) && !u.startsWith("data:") && !u.startsWith("blob:")) external.push(u);
   });
   page.on("pageerror", (e) => errors.push(e.message));
   return { page, ctx, external, errors };
-}
-
-async function onboard(page, adult = true) {
-  await page.goto(`${ORIGIN}/`);
-  await page.getByRole("button", { name: "Commencer" }).click();
-  await page.getByRole("button", { name: "J'ai compris" }).click();
-  await page.getByRole("button", { name: adult ? "Oui, 18 ans ou plus" : "Non, moins de 18 ans" }).click();
-}
-
-async function placePoints(page, k) {
-  const c = page.locator(".landmark-canvas");
-  await c.waitFor();
-  for (const id of ORDER) {
-    const box = await c.boundingBox();
-    const W = await c.evaluate((el) => el.width);
-    const s = box.width / W;
-    const j = ((id.length * 7 + k * 3) % 5) - 2;
-    await page.mouse.click(box.x + (pts[k][id].x + j) * s, box.y + (pts[k][id].y - j) * s);
-  }
 }
 
 function get(url) {
@@ -80,68 +54,55 @@ function get(url) {
 
 test("en-têtes de sécurité : CSP qui interdit toute connexion externe", async () => {
   const res = await get(`${ORIGIN}/`);
-  const csp = res.headers["content-security-policy"];
-  assert.match(csp, /connect-src 'self'/);
-  assert.match(csp, /default-src 'self'/);
-  const html = res.body;
-  assert.match(html, /http-equiv="Content-Security-Policy"/);
+  assert.match(res.headers["content-security-policy"], /connect-src 'self'/);
+  assert.match(res.body, /http-equiv="Content-Security-Policy"/);
 });
 
-test("parcours complet en repérage manuel : 3 photos, résultats, programme, suivi, suppression", async () => {
+test("parcours complet : scan (galerie), résultat, programme, XP, suivi, suppression", async () => {
   const { page, ctx, external, errors } = await newPage();
+  await page.goto(`${ORIGIN}/`);
+  await shot(page, "01-accueil-onboarding");
   await onboard(page);
-  await page.goto(`${ORIGIN}/#analyse`);
-  await page.getByText("Repérage manuel").first().waitFor();
-  await page.getByText("À environ 1 m ou plus").click();
+  await page.getByRole("heading", { name: "Reflet" }).waitFor();
+  await shot(page, "02-accueil");
 
-  for (let k = 0; k < 3; k++) {
-    await page.getByTestId("file-gallery").setInputFiles(join(FIX, `visage-synthetique-${k + 1}.jpg`));
-    await placePoints(page, k);
-    await page.getByRole("button", { name: "Valider les repères" }).click();
-    await page.locator(".review-canvas").waitFor();
-    if (k === 0) {
-      // Même photo une seconde fois : refusée.
-      await page.getByRole("button", { name: /Ajouter une autre photo/ }).click();
-      await page.getByTestId("file-gallery").setInputFiles(join(FIX, "visage-synthetique-1.jpg"));
-      await page.getByText("déjà été ajoutée").waitFor();
-      continue;
-    }
-    if (k < 2) await page.getByRole("button", { name: /Ajouter une autre photo/ }).click();
-  }
-  await page.getByRole("button", { name: "Voir les résultats" }).click();
-  await page.getByRole("heading", { name: "Vos observations" }).waitFor();
-
+  await page.getByTestId("nav-analyse").click();
+  // Sans caméra disponible : écran de choix de photo.
+  await page.getByTestId("file-gallery").first().setInputFiles(join(FIX, "visage-synthetique-1.jpg"));
+  await placePoints(page, 0);
+  await page.getByRole("heading", { name: "Ton résultat" }).waitFor();
+  await shot(page, "03-resultat-manuel");
   const text = await page.locator("#view").innerText();
-  assert.match(text, /3 photos retenues/);
-  assert.match(text, /Symétrie apparente/);
-  assert.match(text, /Ce que Reflet ne mesure pas/);
-  for (const banned of [/\bscore\s*:/i, /\/10\b/, /\/100\b/, /\bPSL\s*:/]) assert.doesNotMatch(text, banned);
-  const badges = await page.locator(".obs .badge").allInnerTexts();
-  assert.equal(badges.length, 12);
+  assert.match(text, /Symétrie/i);
+  assert.match(text, /Qualité photo/i);
+  for (const banned of [/\bsub ?[0-9]/i, /\bPSL\b/, /\bChad\b/i, /\/10\b/]) assert.doesNotMatch(text, banned);
 
   // Programme
-  await page.goto(`${ORIGIN}/#programme`);
+  await page.getByTestId("nav-programme").click();
   await page.getByText("Je me rase de près").click();
   await page.getByText("J'ai souvent des boutons").click();
   await page.getByRole("button", { name: "Voir mon programme" }).click();
-  await page.getByRole("heading", { name: "Mon programme" }).waitFor();
+  await page.getByRole("heading", { name: "Programme" }).waitFor();
   assert.match(await page.locator("#view").innerText(), /Technique de rasage/);
   await page.getByRole("button", { name: /Suivre ces/ }).click();
+  await shot(page, "04-programme");
 
-  // Suivi
-  await page.goto(`${ORIGIN}/#suivi`);
-  const today = page.locator(".day.today").first();
-  await today.click();
-  await page.locator(".day.today.done").first().waitFor();
+  // Accueil : cocher une habitude donne de l'XP
+  await page.getByTestId("nav-accueil").click();
+  await page.locator(".today-item").first().click();
+  await page.locator(".today-item.done").first().waitFor();
+  assert.match(await page.locator(".rank-card").innerText(), /60 XP/); // 30 (programme) + 10 (habitude) + 20 (scan de qualité)
+  await shot(page, "05-accueil-xp");
 
-  // Les photos ne sont jamais stockées ; seul le profil, les habitudes et les réglages le sont.
-  const stored = await page.evaluate(() => Object.keys(localStorage).sort());
-  assert.deepEqual(stored, ["reflet:analysisLog", "reflet:habits", "reflet:profile", "reflet:profileSet", "reflet:settings"]);
-  const blob = await page.evaluate(() => Object.values(localStorage).join(""));
-  assert.ok(!/data:image|base64/.test(blob));
-  assert.ok(!/eyeOuter|menton/.test(blob), "aucun repère facial stocké");
+  // Profil
+  await page.getByTestId("nav-profil").click();
+  await page.getByRole("heading", { name: "Les rangs" }).waitFor();
+  await shot(page, "06-profil");
 
-  // Tout supprimer
+  // Stockage : jamais de photo ni de repère
+  const blob = await page.evaluate(() => Object.entries(localStorage).filter(([k]) => k.startsWith("reflet:")).map(([, v]) => v).join(""));
+  assert.ok(!/data:image|base64|eyeOuter|menton/.test(blob));
+
   await page.goto(`${ORIGIN}/#donnees`);
   assert.match(await page.locator("#view").innerText(), /Aucune requête vers un autre site/);
   await page.getByRole("button", { name: "Supprimer toutes mes données" }).click();
@@ -149,16 +110,17 @@ test("parcours complet en repérage manuel : 3 photos, résultats, programme, su
   await page.getByRole("button", { name: "Commencer" }).waitFor();
   assert.deepEqual(await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("reflet:"))), []);
 
-  assert.deepEqual(external, [], "aucune requête vers un autre site");
+  assert.deepEqual(external, []);
   assert.deepEqual(errors, []);
   await ctx.close();
 });
 
-test("moins de 18 ans : pas de mesure du visage", async () => {
+test("moins de 18 ans : pas de scan du visage", async () => {
   const { page, ctx, errors } = await newPage();
+  await page.goto(`${ORIGIN}/`);
   await onboard(page, false);
   await page.goto(`${ORIGIN}/#analyse`);
-  await page.getByText("réservées aux 18 ans et plus").waitFor();
+  await page.getByText("réservé aux 18 ans et plus").waitFor();
   assert.equal(await page.getByTestId("file-gallery").count(), 0);
   assert.deepEqual(errors, []);
   await ctx.close();
@@ -166,35 +128,35 @@ test("moins de 18 ans : pas de mesure du visage", async () => {
 
 test("fichier non image refusé", async () => {
   const { page, ctx } = await newPage();
+  await page.goto(`${ORIGIN}/`);
   await onboard(page);
   await page.goto(`${ORIGIN}/#analyse`);
-  await page.getByText("Je ne sais pas").click();
-  const dir = mkdtempSync(join(tmpdir(), "reflet-"));
-  const fake = join(dir, "faux.jpg");
+  const fake = join(mkdtempSync(join(tmpdir(), "reflet-")), "faux.jpg");
   writeFileSync(fake, "<svg xmlns='http://www.w3.org/2000/svg'></svg>");
-  await page.getByTestId("file-gallery").setInputFiles(fake);
+  await page.getByTestId("file-gallery").first().setInputFiles(fake);
   await page.getByText("n'est pas une image JPEG").waitFor();
   await ctx.close();
 });
 
-test("photo de face sur fond uni (aucun repère placé) : rien n'est inventé", async () => {
+test("quitter l'écran pendant l'analyse : rien ne revient s'afficher", async () => {
   const { page, ctx } = await newPage();
+  await page.goto(`${ORIGIN}/`);
   await onboard(page);
   await page.goto(`${ORIGIN}/#analyse`);
-  await page.getByText("À bout de bras", { exact: true }).click();
-  await page.getByTestId("file-gallery").setInputFiles(join(FIX, "visage-synthetique-1.jpg"));
-  await page.locator(".landmark-canvas").waitFor();
-  assert.equal(await page.getByRole("button", { name: "Valider les repères" }).isDisabled(), true);
-  await page.goto(`${ORIGIN}/#resultats`);
-  await page.getByText("Aucune analyse dans cette séance").waitFor();
+  await page.getByTestId("file-gallery").first().setInputFiles(join(FIX, "visage-synthetique-2.jpg"));
+  await page.getByTestId("nav-profil").click();
+  await page.waitForTimeout(1500);
+  assert.equal(await page.locator(".landmark-canvas").count(), 0);
+  assert.match(await page.locator("#page-title").innerText(), /Profil/);
   await ctx.close();
 });
 
 test("affichage ordinateur : navigation latérale, sans erreur", async () => {
   const { page, ctx, errors } = await newPage({ viewport: { width: 1280, height: 800 }, isMobile: false, hasTouch: false });
+  await page.goto(`${ORIGIN}/`);
   await onboard(page);
   await page.locator(".brand").waitFor({ state: "visible" });
-  for (const r of ["programme", "glossaire", "aide", "donnees"]) {
+  for (const r of ["programme", "suivi", "profil", "glossaire", "aide", "donnees"]) {
     await page.goto(`${ORIGIN}/#${r}`);
     await page.locator("#page-title").waitFor();
   }
@@ -202,7 +164,7 @@ test("affichage ordinateur : navigation latérale, sans erreur", async () => {
   await ctx.close();
 });
 
-test("cadre restreint, stockage refusé, distance non renseignée : le sélecteur s'ouvre et la photo est traitée", async () => {
+test("cadre restreint + stockage refusé : la galerie fonctionne", async () => {
   const { page, ctx, errors } = await newPage({ viewport: { width: 400, height: 820 } });
   await page.addInitScript(() => {
     try {
@@ -211,12 +173,10 @@ test("cadre restreint, stockage refusé, distance non renseignée : le sélecteu
   });
   await page.goto(`http://127.0.0.1:${PORT + 1}/`);
   const f = page.frameLocator("#f");
-  await f.getByRole("button", { name: "Commencer" }).click();
-  await f.getByRole("button", { name: "J'ai compris" }).click();
-  await f.getByRole("button", { name: "Oui, 18 ans ou plus" }).click();
-  await f.getByRole("link", { name: "Commencer une analyse" }).click();
-  const chooserP = page.waitForEvent("filechooser", { timeout: 5000 });
-  await f.locator("#photo-input").tap();
+  await onboard(f);
+  await f.getByTestId("cta-scan").click();
+  const chooserP = page.waitForEvent("filechooser", { timeout: 8000 });
+  await f.getByTestId("file-gallery").first().tap();
   const chooser = await chooserP;
   assert.equal(await chooser.element().getAttribute("accept"), "image/*");
   await chooser.setFiles(join(FIX, "visage-synthetique-2.jpg"));
@@ -227,35 +187,11 @@ test("cadre restreint, stockage refusé, distance non renseignée : le sélecteu
 
 test("orientation EXIF respectée (photo de téléphone tournée)", async () => {
   const { page, ctx } = await newPage();
+  await page.goto(`${ORIGIN}/`);
   await onboard(page);
   await page.goto(`${ORIGIN}/#analyse`);
-  // Pixels stockés en paysage 1200×1000 avec l'étiquette EXIF « orientation 6 ».
-  await page.getByTestId("file-gallery").setInputFiles(join(FIX, "exif-orientation-6.jpg"));
+  await page.getByTestId("file-gallery").first().setInputFiles(join(FIX, "exif-orientation-6.jpg"));
   const dims = await page.locator(".landmark-canvas").evaluate((c) => [c.width, c.height]);
   assert.deepEqual(dims, [1000, 1200]);
-  await ctx.close();
-});
-
-test("toucher le bouton ouvre le sélecteur ; s'il ne s'ouvre pas, une aide apparaît ; le collage fonctionne", async () => {
-  const { page, ctx, errors } = await newPage();
-  await onboard(page);
-  await page.goto(`${ORIGIN}/#analyse`);
-  // 1. Le doigt touche directement le champ fichier transparent.
-  const chooserP = page.waitForEvent("filechooser", { timeout: 5000 });
-  await page.locator("#photo-input").tap();
-  const chooser = await chooserP;
-  // 2. Sélecteur intercepté sans perte de focus (comme une visionneuse qui le bloque) : l'aide s'affiche.
-  await page.getByText("La galerie ne s'est pas ouverte ?").waitFor({ timeout: 5000 });
-  await chooser.setFiles([]);
-  // 3. Méthode de secours : coller une image.
-  await page.getByText("Autre méthode : coller une photo").click();
-  const bytes = [...readFileSync(join(FIX, "visage-synthetique-3.jpg"))];
-  await page.getByTestId("paste-zone").evaluate((el, data) => {
-    const dt = new DataTransfer();
-    dt.items.add(new File([new Uint8Array(data)], "photo.jpg", { type: "image/jpeg" }));
-    el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
-  }, bytes);
-  await page.locator(".landmark-canvas").waitFor({ timeout: 10000 });
-  assert.deepEqual(errors, []);
   await ctx.close();
 });

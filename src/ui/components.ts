@@ -22,6 +22,7 @@ const ICON_PATHS: Record<string, string> = {
   undo: "M9 14 4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3",
   arrow: "M5 12h14M13 6l6 6-6 6",
   back: "M19 12H5M11 18l-6-6 6-6",
+  user: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0",
   external: "M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5",
 };
 

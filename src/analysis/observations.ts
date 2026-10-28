@@ -175,6 +175,8 @@ export interface SessionResult {
   observations: MetricObservation[];
   /** Problèmes de prise de vue relevés (identifiants), pour personnaliser le programme. */
   issueIds: string[];
+  /** Raisons pour lesquelles des photos ont été refusées. */
+  blockedReasons?: string[];
 }
 
 export function buildSession(photos: readonly PhotoAnalysis[], distance: CaptureContext["distance"], now = new Date()): SessionResult {

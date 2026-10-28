@@ -131,3 +131,33 @@ test("chiffrement local AES-GCM : aller-retour et intégrité", async () => {
 test("glossaire : chaque terme a un statut", () => {
   for (const t of GLOSSARY) assert.ok(t.status && t.text.length > 40, t.term);
 });
+
+import { computeXp, rankFor, RANKS, weekKey } from "../site/js/app/progress.js";
+import { symmetryIndex, qualityScore } from "../site/js/analysis/summary.js";
+
+test("XP et rangs : calcul à partir des actions, jamais du visage", () => {
+  const wed = new Date(2026, 9, 28);
+  let h = createHabit("Test", 2, "", undefined, new Date(2026, 9, 19));
+  h = toggleDone(toggleDone(h, "2026-10-20"), "2026-10-21"); // semaine précédente : objectif 2/2 atteint
+  h = toggleDone(h, "2026-10-26");
+  const xp = computeXp([h], ["2026-10-26", "2026-10-26"], true, wed);
+  assert.equal(xp.habits, 30);
+  assert.equal(xp.weeks, 50);
+  assert.equal(xp.scans, 20, "un scan récompensé une seule fois par semaine");
+  assert.equal(xp.program, 30);
+  assert.equal(xp.total, 130);
+  assert.equal(rankFor(0).rank.name, RANKS[0].name);
+  assert.equal(rankFor(130).rank.name, "Initié");
+  assert.equal(rankFor(99999).next, null);
+  assert.equal(weekKey(wed), "2026-10-26");
+});
+
+test("indice de symétrie : fourchette honnête, null si rien de mesurable", () => {
+  assert.equal(symmetryIndex([]).value, null);
+  const o = (id, est, low, high) => ({ id, level: "confirm", estimate: est, low, high, photosUsed: 3, influences: [], disagreement: false });
+  const s = symmetryIndex([o("outerCanthusOffset", 2, -1, 5), o("mentonMidline", -4, -7, -1)]);
+  assert.equal(s.value, 97);
+  assert.equal(s.high, 100); // meilleur cas : écarts 0 et 1 → 99,5, arrondi à 100
+  assert.ok(s.low <= s.value && s.value <= s.high);
+  assert.equal(qualityScore([]).score, 0);
+});

@@ -77,3 +77,7 @@ export function sanitizeHabits(raw: unknown): Habit[] {
 export function sanitizeLog(raw: unknown): string[] {
   return Array.isArray(raw) ? raw.filter((d): d is string => typeof d === "string" && ISO.test(d)).slice(-200) : [];
 }
+
+export function sanitizeWeeks(raw: unknown): string[] {
+  return Array.isArray(raw) ? [...new Set(raw.filter((d): d is string => typeof d === "string" && DATE.test(d)))].slice(-120) : [];
+}

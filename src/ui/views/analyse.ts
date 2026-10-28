@@ -1,34 +1,37 @@
+/**
+ * Écran de scan : caméra plein cadre → rafale de 3 images → animation de scan
+ * pendant le traitement réel → résultats. Galerie disponible à tout moment.
+ * Si le modèle automatique est indisponible, repli sur le repérage manuel.
+ */
 import { clear, h, announce } from "../dom.js";
-import { button, card, checkbox, choiceGroup, details, icon, linkButton, notice, pageHeader } from "../components.js";
+import { button, icon, linkButton, notice } from "../components.js";
 import { createLandmarker } from "../landmarker.js";
-import { createCamera, cameraSupported, CAMERA_ERROR_TEXT } from "../camera.js";
-import { drawOverlay } from "../overlay.js";
-import { analysesInLast24h, endCapture, logAnalysis, state, type CaptureSession } from "../../app/state.js";
+import { COLORS } from "../overlay.js";
+import { createCamera, cameraSupported, CAMERA_ERROR_TEXT, galleryInput } from "../camera.js";
+import { analysesInLast24h, endCapture, logAnalysis, rewardScan, saveDistancePref, state } from "../../app/state.js";
 import { go } from "../../app/router.js";
+import { weekKey } from "../../app/progress.js";
 import { loadImageFile, ImageInputError, wipeImage, type LoadedImage } from "../../image/input.js";
-import { detect, loadDetector } from "../../analysis/detector.js";
+import { checkAvailability, detect, loadDetector } from "../../analysis/detector.js";
 import { analyzePhoto, buildSession, InvalidPointsError, type PhotoAnalysis } from "../../analysis/observations.js";
+import { qualityScore } from "../../analysis/summary.js";
 import type { CaptureContext } from "../../analysis/quality.js";
-import type { PointSet, Point } from "../../analysis/points.js";
-
-export const MAX_PHOTOS = 5;
+import type { Point, PointSet } from "../../analysis/points.js";
 
 type Phase =
-  | { kind: "prepare"; error?: string }
-  | { kind: "working"; message: string }
-  | { kind: "landmark"; image: LoadedImage }
-  | { kind: "camera" }
-  | { kind: "review"; image: LoadedImage; analysis: PhotoAnalysis | null; mesh?: Point[]; error?: string };
+  | { kind: "camera"; error?: string }
+  | { kind: "pick"; error?: string }
+  | { kind: "scanning"; image: LoadedImage; step: string }
+  | { kind: "manual"; image: LoadedImage };
 
-let phase: Phase = { kind: "prepare" };
-let draft: { distance: CaptureContext["distance"] | null; declared: NonNullable<CaptureContext["declared"]> } = {
-  distance: null,
-  declared: { facingCamera: true, mouthClosed: true, neutral: true, noGlasses: true },
-};
-
-const autoAvailable = () => state.detector?.available === true;
-
+let phase: Phase = { kind: cameraSupported() ? "camera" : "pick" };
 let stopCamera: (() => void) | null = null;
+/** Jeton d'exécution : une analyse lancée puis abandonnée (changement d'écran) ne doit plus rien afficher. */
+let runId = 0;
+/** XP gagnée au dernier scan, affichée sur l'écran des résultats. */
+export let lastScanXp = 0;
+
+const DECLARED = { facingCamera: true, mouthClosed: true, neutral: true, noGlasses: true };
 
 function releaseCamera(): void {
   stopCamera?.();
@@ -36,208 +39,86 @@ function releaseCamera(): void {
 }
 
 export function resetAnalyse(): void {
+  runId++;
   releaseCamera();
-  phase = { kind: "prepare" };
+  phase = { kind: cameraSupported() ? "camera" : "pick" };
 }
 
-export function renderAnalyse(root: HTMLElement): void {
-  clear(root);
-  if (state.settings.adult !== true) {
-    root.append(
-      pageHeader("Analyse de photo"),
-      card(null, h("p", null, "Les mesures du visage sont réservées aux 18 ans et plus. Vous pouvez suivre le programme d'habitudes et les conseils de prise de vue."), h("div", { class: "button-row" }, linkButton("Mon programme", "#programme"))),
-    );
-    return;
-  }
-  if (state.capture?.finished && phase.kind === "prepare") {
-    endCapture();
-    draft.distance = null;
-  }
-  switch (phase.kind) {
-    case "prepare": return renderPrepare(root, phase.error);
-    case "working": return renderWorking(root, phase.message);
-    case "landmark": return renderLandmark(root, phase.image);
-    case "review": return renderReview(root, phase);
-    case "camera": return renderCamera(root);
-  }
+export function abandonCapture(): void {
+  endCapture();
+  resetAnalyse();
 }
 
-function rerenderHere(): void {
-  const root = document.getElementById("view");
-  if (root) renderAnalyse(root);
+function host(): HTMLElement | null {
+  return document.getElementById("view");
 }
 
 function setPhase(p: Phase): void {
   if (p.kind !== "camera") releaseCamera();
   phase = p;
-  rerenderHere();
-  // Chaque étape repart du haut de l'écran : sinon, sur mobile, on reste en bas
-  // de la page précédente et l'on a l'impression que rien ne s'est passé.
+  const root = host();
+  if (root) renderAnalyse(root);
   window.scrollTo({ top: 0 });
-  document.getElementById("page-title")?.focus({ preventScroll: true });
 }
 
-function renderPrepare(root: HTMLElement, error?: string): void {
-  const cap = state.capture;
-  const adding = !!cap && cap.photos.length > 0;
-  root.appendChild(pageHeader(adding ? `Photo ${cap!.photos.length + 1}` : "Analyse de photo", adding ? "Même lieu, même lumière, même distance que la précédente." : "Quelques réglages avant de commencer : ils décident de la fiabilité des mesures."));
-
-  if (!adding && analysesInLast24h() >= 3) {
-    root.appendChild(
-      notice("info", h("p", null, "Vous avez déjà fait plusieurs analyses aujourd'hui. Vos traits ne changent pas d'un jour à l'autre : les différences viennent surtout de la lumière et de l'angle."), h("p", null, "Si vous pensez beaucoup à votre apparence en ce moment, ", h("a", { href: "#aide" }, "des ressources d'écoute existent"), ".")),
+export function renderAnalyse(root: HTMLElement): void {
+  clear(root);
+  root.classList.add("view-scan");
+  if (state.settings.adult !== true) {
+    root.append(
+      h("header", { class: "page-header" }, h("h1", { id: "page-title", tabindex: "-1" }, "Scan")),
+      h("div", { class: "card" }, h("p", null, "Le scan du visage est réservé aux 18 ans et plus. Ton programme d'habitudes t'attend."), h("div", { class: "button-row" }, linkButton("Mon programme", "#programme"))),
     );
+    return;
   }
-  if (error) root.appendChild(notice("block", h("p", null, error)));
-
-  // Mode de repérage
-  if (state.detector === null) {
-    root.appendChild(notice("info", h("p", null, "Vérification du module de repérage automatique…")));
-  } else if (!autoAvailable()) {
-    root.appendChild(
-      card(
-        "Repérage manuel",
-        h("p", null, "Le module de repérage automatique (MediaPipe) n'est pas installé dans cette version. Vous placerez vous-même 11 repères sur la photo, avec une loupe : comptez environ 2 minutes par photo."),
-        h("p", { class: "muted small" }, "Reflet ne remplace jamais une détection absente par des résultats inventés. Pour activer le repérage automatique, l'hébergeur doit installer les fichiers du modèle (voir la documentation)."),
-      ),
-    );
-  } else {
-    root.appendChild(notice("info", h("p", null, "Repérage automatique disponible : le modèle fonctionne dans votre navigateur, hors ligne.")));
-  }
-
-  if (!adding) {
-    root.appendChild(
-      card(
-        "Bien prendre la photo",
-        h("p", null, h("strong", null, "L'essentiel : "), "retardateur à environ 1,5\u00a0m avec le zoom ×2, face à une fenêtre, tête droite, expression neutre, 3 photos."),
-        details(
-          "Pourquoi et comment",
-          h(
-            "ol",
-            { class: "steps" },
-            h("li", null, h("strong", null, "Distance : "), "posez le téléphone (ou demandez à quelqu'un) à environ 1,5\u00a0m, avec le zoom ×2 et le retardateur. À bout de bras, le nez paraît environ 30\u00a0% plus large."),
-            h("li", null, h("strong", null, "Lumière : "), "face à une fenêtre, en lumière du jour indirecte, sans flash. Une lumière de côté crée de fausses asymétries."),
-            h("li", null, h("strong", null, "Pose : "), "objectif à hauteur des yeux, tête droite, regard dans l'objectif."),
-            h("li", null, h("strong", null, "Expression : "), "neutre, lèvres jointes sans serrer, cheveux dégagés du front et des oreilles, sans lunettes."),
-            h("li", null, h("strong", null, "Plusieurs photos : "), "une mesure n'est jugée «\u00a0fiable\u00a0» que si 3 photos prises dans les mêmes conditions concordent."),
-          ),
-        ),
-      ),
-    );
-    root.appendChild(
-      card(
-        "Conditions de prise de vue",
-        choiceGroup(
-          "distance",
-          "Comment la photo a-t-elle été prise ?",
-          [
-            { value: "far", label: "À environ 1 m ou plus", hint: "Retardateur, appui, ou photo prise par quelqu'un." },
-            { value: "near", label: "À bout de bras", hint: "Selfie classique." },
-            { value: "unknown", label: "Je ne sais pas" },
-          ],
-          draft.distance,
-          (v) => {
-            draft.distance = v;
-            rerenderHere();
-          },
-        ),
-        h(
-          "fieldset",
-          { class: "choices" },
-          h("legend", null, "Sur la photo :"),
-          !autoAvailable() ? checkbox("Je regarde droit vers l'objectif", draft.declared.facingCamera, (v) => (draft.declared.facingCamera = v)) : null,
-          !autoAvailable() ? checkbox("Ma bouche est fermée", draft.declared.mouthClosed, (v) => (draft.declared.mouthClosed = v)) : null,
-          !autoAvailable() ? checkbox("Mon expression est neutre", draft.declared.neutral, (v) => (draft.declared.neutral = v)) : null,
-          checkbox("Je ne porte pas de lunettes", draft.declared.noGlasses, (v) => (draft.declared.noGlasses = v)),
-        ),
-      ),
-    );
-  } else {
-    root.appendChild(
-      notice("info", h("p", null, `Conditions de cette séance : ${cap!.distance === "far" ? "à 1 m ou plus" : cap!.distance === "near" ? "à bout de bras" : "distance inconnue"}. Gardez-les identiques.`)),
-    );
-  }
-
-  root.appendChild(
-    card(
-      adding ? "Ajouter une photo" : "Choisir la photo",
-      photoPicker(),
-      h("p", { class: "muted small" }, "JPEG, PNG, WebP ou HEIC, 15 Mo au maximum. La photo reste sur cet appareil et n'est pas enregistrée."),
-      !adding && draft.distance === null
-        ? h("p", { class: "muted small" }, "Distance non indiquée : elle sera considérée comme inconnue, et les rapports impliquant la largeur du nez seront masqués.")
-        : null,
-    ),
-  );
-  if (adding) {
-    root.appendChild(h("div", { class: "button-row" }, button("Voir les résultats avec les photos actuelles", finish, { variant: "ghost", icon: "arrow" })));
+  switch (phase.kind) {
+    case "camera": return renderCamera(root, phase.error);
+    case "pick": return renderPick(root, phase.error);
+    case "scanning": return renderScanning(root, phase.image, phase.step);
+    case "manual": return renderManual(root, phase.image);
   }
 }
 
-/**
- * Sélecteur de photo compatible avec un maximum de navigateurs et de visionneuses :
- *  - le champ fichier lui-même, transparent, recouvre tout le bouton : le doigt
- *    touche directement le champ (pas de transfert par <label>, pas de clic
- *    simulé, que certaines vues web intégrées ignorent) ;
- *  - accept="image/*" sans attribut capture : le téléphone propose lui-même
- *    l'appareil photo ou la galerie, et iOS convertit le HEIC en JPEG ;
- *  - si aucun sélecteur ne s'ouvre (la page ne perd pas le focus), une aide
- *    s'affiche avec deux solutions : ouvrir dans le navigateur, ou coller l'image ;
- *  - glisser-déposer et collage.
- */
-function photoPicker(): HTMLElement {
-  const input = h("input", { type: "file", accept: "image/*", class: "file-overlay", id: "photo-input", "aria-label": "Prendre ou choisir une photo", "data-testid": "file-gallery" });
-  const help = h("div", { class: "picker-help", "aria-live": "polite" });
-  let pending: number | undefined;
-  let left = false;
-  const markLeft = () => (left = true);
-  input.addEventListener("click", () => {
-    left = false;
-    window.addEventListener("blur", markLeft, { once: true });
-    document.addEventListener("visibilitychange", markLeft, { once: true });
-    window.clearTimeout(pending);
-    pending = window.setTimeout(() => {
-      if (!left && !input.files?.length) showPickerHelp(help);
-    }, 1800);
-  });
-  input.addEventListener("change", () => {
-    window.clearTimeout(pending);
-    help.replaceChildren();
-    const f = input.files?.[0];
-    if (f) void handleFile(f);
-    input.value = "";
-  });
+function header(title: string, sub?: string): HTMLElement {
+  return h("header", { class: "scan-header" }, h("h1", { id: "page-title", tabindex: "-1" }, title), sub ? h("p", { class: "muted" }, sub) : null);
+}
 
-  const pickBtn = h("div", { class: `btn ${cameraSupported() ? "btn-ghost" : "btn-primary"} btn-wide picker-button` }, icon("image", 18), h("span", null, "Choisir une photo"), input);
-  const camBtn = cameraSupported()
-    ? h("button", { type: "button", class: "btn btn-primary btn-wide", "data-testid": "open-camera", onclick: (() => setPhase({ kind: "camera" })) as EventListener }, icon("camera", 18), h("span", null, "Ouvrir la caméra"))
+function guardNotice(): HTMLElement | null {
+  return analysesInLast24h() >= 3
+    ? notice("info", h("p", null, "Plusieurs scans aujourd'hui. Ton visage ne change pas d'un jour à l'autre : les écarts viennent de la lumière et de l'angle. ", h("a", { href: "#aide" }, "Besoin d'en parler ?")))
     : null;
+}
 
-  const paste = h("div", {
-    class: "paste-zone", contenteditable: "true", role: "textbox", "aria-label": "Zone de collage d'image", "data-testid": "paste-zone",
-    "aria-multiline": "false", inputmode: "none",
+function renderCamera(root: HTMLElement, error?: string): void {
+  releaseCamera();
+  const cam = createCamera({
+    distance: state.distancePref,
+    onDistance: saveDistancePref,
+    onCapture: (files) => {
+      stopCamera = null;
+      void processFiles(files, "camera");
+    },
+    onGallery: (f) => {
+      stopCamera = null;
+      void processFiles([f], "gallery");
+    },
+    onError: (e) => {
+      stopCamera = null;
+      setPhase({ kind: "pick", error: CAMERA_ERROR_TEXT[e] });
+    },
   });
-  paste.addEventListener("paste", (e) => {
-    const item = [...(e.clipboardData?.items ?? [])].find((i) => i.kind === "file" && i.type.startsWith("image/"));
-    const f = item?.getAsFile();
-    e.preventDefault();
-    if (f) void handleFile(f);
-    else help.replaceChildren(notice("warn", h("p", null, "Le presse-papiers ne contient pas d'image. Dans la galerie, ouvrez la photo, puis « Copier », et recommencez.")));
-  });
-  // Rien d'autre qu'une image ne peut entrer dans la zone : ni texte, ni HTML collé ou déposé.
-  paste.addEventListener("beforeinput", (e) => e.preventDefault());
-  paste.addEventListener("drop", (e) => e.preventDefault());
-  paste.addEventListener("input", () => (paste.textContent = ""));
+  stopCamera = cam.stop;
+  root.append(header("Scan"), guardNotice() ?? "", error ? notice("block", h("p", null, error)) : "", cam.element);
+}
 
+function renderPick(root: HTMLElement, error?: string): void {
   const zone = h(
     "div",
-    { class: "drop-zone" },
-    h("div", { class: "picker-buttons" }, camBtn, pickBtn),
-    help,
-    h("p", { class: "muted small drop-hint" }, "Sur ordinateur : glissez une image ici ou collez-la (Ctrl/⌘ + V)."),
-    details(
-      "Autre méthode : coller une photo",
-      h("p", { class: "small" }, "Dans votre galerie, ouvrez la photo et choisissez « Copier ». Revenez ici, appuyez longuement dans le cadre ci-dessous, puis « Coller »."),
-      paste,
-    ),
+    { class: "pick-zone" },
+    h("div", { class: "pick-icon", "aria-hidden": "true" }, icon("image", 34)),
+    h("p", { class: "pick-title" }, "Choisis une photo de face"),
+    h("p", { class: "muted small" }, "Lumière de face · tête droite · sans lunettes"),
+    h("div", { class: "btn btn-primary btn-wide picker-button" }, icon("image", 18), h("span", null, "Ouvrir la galerie"), galleryInput((f) => void processFiles([f], "gallery"))),
   );
   zone.addEventListener("dragover", (e) => {
     e.preventDefault();
@@ -248,200 +129,186 @@ function photoPicker(): HTMLElement {
     e.preventDefault();
     zone.classList.remove("dragging");
     const f = e.dataTransfer?.files?.[0];
-    if (f) void handleFile(f);
+    if (f) void processFiles([f], "gallery");
   });
-  return zone;
-}
-
-function showPickerHelp(help: HTMLElement): void {
-  help.replaceChildren(
-    notice(
-      "warn",
-      h("p", null, h("strong", null, "La galerie ne s'est pas ouverte ? "), "L'application qui affiche Reflet bloque peut-être l'accès aux fichiers."),
-      h("p", null, cameraSupported() ? "Utilisez « Ouvrir la caméra », ou « Autre méthode : coller une photo » ci-dessous." : "Utilisez « Autre méthode : coller une photo » ci-dessous."),
-    ),
+  root.append(
+    header("Scan"),
+    guardNotice() ?? "",
+    error ? notice("warn", h("p", null, error)) : "",
+    zone,
+    cameraSupported() ? h("div", { class: "button-row center" }, button("Réessayer la caméra", () => setPhase({ kind: "camera" }), { variant: "quiet", icon: "camera" })) : "",
   );
 }
 
-function renderCamera(root: HTMLElement): void {
-  releaseCamera();
-  const err = h("div");
-  const cam = createCamera({
-    onCapture: (file) => {
-      stopCamera = null;
-      void handleFile(file);
-    },
-    onCancel: () => {
-      stopCamera = null;
-      setPhase({ kind: "prepare" });
-    },
-    onError: (e) => {
-      stopCamera = null;
-      setPhase({ kind: "prepare", error: CAMERA_ERROR_TEXT[e] });
-    },
-  });
-  stopCamera = cam.stop;
-  root.append(pageHeader("Caméra", "Visage dans l'ovale, regard dans l'objectif, expression neutre."), err, cam.element);
+/* ---------------- Animation de scan ---------------- */
+
+let scanCanvas: HTMLCanvasElement | null = null;
+let scanStep: HTMLElement | null = null;
+
+function renderScanning(root: HTMLElement, image: LoadedImage, step: string): void {
+  scanCanvas = h("canvas", { class: "scan-canvas", role: "img", "aria-label": "Photo en cours d'analyse" });
+  scanCanvas.width = image.width;
+  scanCanvas.height = image.height;
+  scanCanvas.getContext("2d")?.drawImage(image.canvas, 0, 0);
+  scanStep = h("p", { class: "scan-step", "aria-live": "polite" }, step);
+  root.append(
+    header("Analyse"),
+    h("div", { class: "scan-stage" }, scanCanvas, h("div", { class: "scan-line", "aria-hidden": "true" }), h("div", { class: "scan-grid", "aria-hidden": "true" })),
+    scanStep,
+    h("p", { class: "muted small center" }, icon("shield", 14), " Tout se passe sur ton téléphone."),
+  );
 }
 
-/** Collage d'une image depuis le presse-papiers, actif seulement sur l'écran de préparation. */
-document.addEventListener("paste", (e) => {
-  if (phase.kind !== "prepare" || location.hash !== "#analyse") return;
-  const item = [...(e.clipboardData?.items ?? [])].find((i) => i.kind === "file" && i.type.startsWith("image/"));
-  const f = item?.getAsFile();
-  if (f) {
-    e.preventDefault();
-    void handleFile(f);
-  }
-});
-
-function ensureCapture(): CaptureSession {
-  if (!state.capture) {
-    state.capture = { distance: draft.distance ?? "unknown", declared: { ...draft.declared }, photos: [], images: [], fingerprints: new Set(), finished: false };
-  }
-  return state.capture;
+function setStep(text: string): void {
+  if (scanStep) scanStep.textContent = text;
 }
 
-async function handleFile(file: File): Promise<void> {
+/** Fait apparaître les points du maillage progressivement (effet visuel sur des points réels). */
+async function revealMesh(points: Point[], image: LoadedImage): Promise<void> {
+  const c = scanCanvas;
+  const ctx = c?.getContext("2d");
+  if (!c || !ctx || !points.length) return;
+  const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  const r = Math.max(1.2, image.width / 420);
+  const batches = reduced ? 1 : 12;
+  const per = Math.ceil(points.length / batches);
+  for (let b = 0; b < batches; b++) {
+    ctx.fillStyle = COLORS.active;
+    for (const p of points.slice(b * per, (b + 1) * per)) {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    await new Promise((res) => setTimeout(res, 45));
+  }
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/* ---------------- Traitement ---------------- */
+
+async function processFiles(files: File[], source: "camera" | "gallery"): Promise<void> {
+  const myRun = ++runId;
+  const alive = () => myRun === runId && location.hash === "#analyse";
+  endCapture();
+  const started = performance.now();
+  let images: LoadedImage[] = [];
   try {
-    await processFile(file);
+    for (const f of files) images.push(await loadImageFile(f));
   } catch (e) {
-    console.error(e);
-    setPhase({ kind: "prepare", error: `La photo n'a pas pu être traitée (${e instanceof Error ? e.message : "erreur inconnue"}). Réessayez avec une autre photo.` });
+    images.forEach(wipeImage);
+    return setPhase({ kind: source === "camera" && cameraSupported() ? "camera" : "pick", error: e instanceof ImageInputError ? e.message : "Impossible de lire la photo." });
   }
-}
+  // Doublons exacts (même fichier) : on n'en garde qu'un.
+  const seen = new Set<string>();
+  images = images.filter((im) => (seen.has(im.fingerprint) ? (wipeImage(im), false) : (seen.add(im.fingerprint), true)));
 
-async function processFile(file: File): Promise<void> {
-  setPhase({ kind: "working", message: "Lecture de la photo…" });
-  let img: LoadedImage;
+  if (!alive()) return images.forEach(wipeImage);
+  setPhase({ kind: "scanning", image: images[0], step: "Détection du visage…" });
+  runId = myRun; // setPhase ne doit pas invalider cette exécution
+  await new Promise((r) => requestAnimationFrame(() => r(null)));
+
+  if (state.detector === null) {
+    const forced = (window as Window & { __REFLET_FORCE_MANUAL__?: boolean }).__REFLET_FORCE_MANUAL__ === true;
+    state.detector = forced ? { available: false, reason: "forcé (tests)" } : await checkAvailability();
+  }
+  if (state.detector?.available !== true) {
+    // Modèle absent : repérage manuel sur la première image.
+    images.slice(1).forEach(wipeImage);
+    await sleep(500);
+    if (!alive()) return wipeImage(images[0]);
+    return setPhase({ kind: "manual", image: images[0] });
+  }
+
+  const distance = state.distancePref;
+  const photos: PhotoAnalysis[] = [];
+  const kept: LoadedImage[] = [];
+  let shownMesh = false;
+  let faceless = 0;
+  let lastError = "";
   try {
-    img = await loadImageFile(file);
-  } catch (e) {
-    setPhase({ kind: "prepare", error: e instanceof ImageInputError ? e.message : "Impossible de lire cette photo." });
-    return;
-  }
-  const cap = ensureCapture();
-  if (cap.fingerprints.has(img.fingerprint)) {
-    wipeImage(img);
-    setPhase({ kind: "prepare", error: "Cette photo a déjà été ajoutée à la séance. Plusieurs photos différentes sont nécessaires pour vérifier la répétabilité." });
-    return;
-  }
-  if (autoAvailable()) {
-    setPhase({ kind: "working", message: "Chargement du modèle local…" });
-    try {
-      await loadDetector();
-      setPhase({ kind: "working", message: "Repérage du visage…" });
-      await new Promise((r) => requestAnimationFrame(() => r(null)));
+    await loadDetector();
+    for (let i = 0; i < images.length; i++) {
+      setStep(images.length > 1 ? `Repérage du visage · image ${i + 1}/${images.length}` : "Repérage du visage…");
+      const img = images[i];
       const det = await detect(img.canvas);
-      if (det.faceCount === 0 || !det.points) {
+      if (!alive()) return images.forEach(wipeImage);
+      if (!det.points || det.faceCount === 0) {
+        faceless++;
         wipeImage(img);
-        setPhase({ kind: "prepare", error: "Aucun visage n'a été détecté. Essayez une photo de face, bien éclairée, où le visage occupe une bonne partie du cadre." });
-        return;
+        continue;
+      }
+      if (!shownMesh) {
+        await revealMesh(det.landmarksPx, img);
+        shownMesh = true;
       }
       const ctx: CaptureContext = {
-        mode: "auto", distance: cap.distance, imageShortSide: img.shortSideOriginal,
-        pose: det.pose, expression: det.expression, faceCount: det.faceCount, declared: cap.declared,
+        mode: "auto", distance, imageShortSide: img.shortSideOriginal,
+        pose: det.pose, expression: det.expression, faceCount: det.faceCount, declared: DECLARED,
       };
-      runAnalysis(img, det.points, ctx, det.landmarksPx);
-    } catch (e) {
-      console.error(e);
-      state.detector = { available: false, reason: "Le module automatique n'a pas pu démarrer sur cet appareil." };
-      setPhase({ kind: "landmark", image: img });
-      announce("Le repérage automatique a échoué ; passage au repérage manuel.");
+      try {
+        const a = analyzePhoto(`photo-${i + 1}`, det.points, img.pixels, ctx);
+        photos.push(a);
+        kept.push(img);
+      } catch (e) {
+        lastError = e instanceof InvalidPointsError ? "Repères incohérents." : "Analyse impossible.";
+        wipeImage(img);
+      }
     }
-  } else {
-    setPhase({ kind: "landmark", image: img });
-  }
-}
-
-function runAnalysis(img: LoadedImage, points: PointSet, ctx: CaptureContext, mesh?: Point[]): void {
-  const cap = ensureCapture();
-  try {
-    const a = analyzePhoto(`photo-${cap.photos.length + 1}`, points, img.pixels, ctx);
-    if (!a.blocked) {
-      cap.photos.push(a);
-      cap.images.push(img);
-      cap.fingerprints.add(img.fingerprint);
-    }
-    setPhase({ kind: "review", image: img, analysis: a, mesh });
   } catch (e) {
-    const msg = e instanceof InvalidPointsError ? `Repères incohérents : ${e.problems.join(" ")}` : "L'analyse de cette photo a échoué.";
-    setPhase({ kind: "review", image: img, analysis: null, error: msg });
-  }
-}
-
-function renderWorking(root: HTMLElement, message: string): void {
-  root.append(pageHeader("Analyse en cours"), h("div", { class: "working", role: "status" }, h("span", { class: "spinner", "aria-hidden": "true" }), h("p", null, message)));
-}
-
-function renderLandmark(root: HTMLElement, image: LoadedImage): void {
-  const cap = ensureCapture();
-  root.append(
-    pageHeader("Placez les repères", "Touchez la photo à l'endroit demandé. Glissez pour ajuster : une loupe apparaît au-dessus du doigt."),
-    createLandmarker({
-      image: image.canvas,
-      onDone: (points) => {
-        const ctx: CaptureContext = { mode: "manual", distance: cap.distance, imageShortSide: image.shortSideOriginal, declared: cap.declared };
-        runAnalysis(image, points, ctx);
-      },
-      onCancel: () => {
-        wipeImage(image);
-        setPhase({ kind: "prepare" });
-      },
-    }),
-  );
-}
-
-function renderReview(root: HTMLElement, p: Extract<Phase, { kind: "review" }>): void {
-  const cap = ensureCapture();
-  const a = p.analysis;
-  root.appendChild(pageHeader(a?.blocked ? "Photo non exploitable" : "Contrôle de la photo", a && !a.blocked ? `${cap.photos.length} photo${cap.photos.length > 1 ? "s" : ""} retenue${cap.photos.length > 1 ? "s" : ""} dans cette séance.` : undefined));
-
-  const canvas = h("canvas", { class: "review-canvas", role: "img", "aria-label": "Photo avec les repères placés, la ligne des yeux et l'axe du visage" });
-  if (a) drawOverlay(canvas, p.image.canvas, a.points, { axes: true, mesh: p.mesh, crop: true });
-  root.appendChild(card(null, canvas, h("p", { class: "muted small" }, "Pointillés : ligne des yeux et axe de référence. L'inclinaison de la tête est corrigée par calcul.")));
-
-  if (p.error) root.appendChild(notice("block", h("p", null, p.error)));
-  if (a) {
-    const blocks = a.issues.filter((i) => i.severity === "block");
-    const warns = a.issues.filter((i) => i.severity === "warn");
-    if (blocks.length) {
-      root.appendChild(card("Pourquoi cette photo est refusée", h("ul", { class: "issue-list" }, blocks.map((i) => h("li", null, h("strong", null, i.message), " ", i.advice)))));
-      wipeImage(p.image);
-    }
-    if (warns.length) {
-      root.appendChild(card("Points d'attention", h("ul", { class: "issue-list" }, warns.map((i) => h("li", null, h("strong", null, i.message), " ", i.advice)))));
-    }
-    if (!blocks.length && !warns.length) {
-      root.appendChild(notice("info", h("p", null, "Aucun problème de qualité détecté sur cette photo.")));
-    }
+    console.error(e);
+    state.detector = { available: false, reason: "Le module automatique n'a pas pu démarrer sur cet appareil." };
+    images.slice(1).forEach(wipeImage);
+    return setPhase({ kind: "manual", image: images[0] });
   }
 
-  const canAdd = cap.photos.length < MAX_PHOTOS;
-  root.appendChild(
-    h(
-      "div",
-      { class: "button-row" },
-      canAdd ? button(cap.photos.length ? "Ajouter une autre photo" : "Essayer une autre photo", () => setPhase({ kind: "prepare" }), { variant: cap.photos.length >= 3 ? "ghost" : "primary", icon: "plus" }) : null,
-      cap.photos.length ? button("Voir les résultats", finish, { variant: cap.photos.length >= 3 || !canAdd ? "primary" : "ghost", icon: "arrow" }) : null,
-    ),
-  );
-  if (cap.photos.length > 0 && cap.photos.length < 3) {
-    root.appendChild(h("p", { class: "muted small" }, `Encore ${3 - cap.photos.length} photo${3 - cap.photos.length > 1 ? "s" : ""} pour pouvoir confirmer une mesure.`));
+  if (!alive()) return images.forEach(wipeImage);
+  if (!photos.length) {
+    kept.forEach(wipeImage);
+    const msg = faceless ? "Aucun visage détecté. Place ton visage dans l'ovale, de face, bien éclairé." : lastError || "Analyse impossible.";
+    return setPhase({ kind: cameraSupported() && source === "camera" ? "camera" : "pick", error: msg });
   }
+  setStep("Mesure de la symétrie et des proportions…");
+  await sleep(350);
+  setStep("Contrôle de la qualité…");
+  // Durée minimale pour que l'animation soit lisible (le calcul réel est déjà fini).
+  const elapsed = performance.now() - started;
+  if (elapsed < 1800) await sleep(1800 - elapsed);
+  if (!alive()) return kept.forEach(wipeImage);
+  finish(photos, kept, distance);
 }
 
-function finish(): void {
-  const cap = state.capture;
-  if (!cap || cap.photos.length === 0) return;
-  state.result = buildSession(cap.photos, cap.distance);
-  cap.finished = true;
+function finish(photos: PhotoAnalysis[], images: LoadedImage[], distance: CaptureContext["distance"]): void {
+  const usable = photos.filter((p) => !p.blocked);
+  state.capture = { distance, declared: DECLARED, photos: usable.length ? usable : photos, images, fingerprints: new Set(images.map((i) => i.fingerprint)), finished: true };
+  state.result = buildSession(usable, distance);
+  state.result.blockedReasons = photos.filter((p) => p.blocked).flatMap((p) => p.issues.filter((i) => i.severity === "block").map((i) => i.message));
   logAnalysis();
-  phase = { kind: "prepare" };
+  const q = qualityScore(photos);
+  lastScanXp = q.score >= 70 && usable.length && rewardScan(weekKey(new Date())) ? 20 : 0;
+  announce("Analyse terminée.");
+  phase = { kind: cameraSupported() ? "camera" : "pick" };
   go("resultats");
 }
 
-export function abandonCapture(): void {
-  endCapture();
-  phase = { kind: "prepare" };
+function renderManual(root: HTMLElement, image: LoadedImage): void {
+  root.append(
+    header("Place les repères", "Le scan automatique n'est pas disponible ici. Touche la photo aux endroits demandés."),
+    createLandmarker({
+      image: image.canvas,
+      onDone: (points: PointSet) => {
+        const ctx: CaptureContext = { mode: "manual", distance: state.distancePref, imageShortSide: image.shortSideOriginal, declared: DECLARED };
+        try {
+          const a = analyzePhoto("photo-1", points, image.pixels, ctx);
+          finish([a], [image], state.distancePref);
+        } catch (e) {
+          setPhase({ kind: "pick", error: e instanceof InvalidPointsError ? `Repères incohérents : ${e.problems.join(" ")}` : "Analyse impossible." });
+        }
+      },
+      onCancel: () => {
+        wipeImage(image);
+        setPhase({ kind: cameraSupported() ? "camera" : "pick" });
+      },
+    }),
+  );
 }

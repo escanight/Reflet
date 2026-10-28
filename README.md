@@ -91,6 +91,22 @@ Voir `docs/ARCHITECTURE.md` pour les décisions et `docs/VALIDATION.md` pour ce 
 
 ## Journal des corrections
 
+**2.0.0 — refonte**
+- **Scan automatique** :
+  - caméra plein cadre, rafale de 3 images, animation de scan pendant le traitement réel ;
+  - le modèle MediaPipe est auto-hébergé, installé et testé par la CI GitHub sur une vraie photo de visage.
+- **Nouvelle interface** sombre et épurée :
+  - navigation à 4 onglets avec un bouton de scan central ;
+  - résultats sous forme de cartes ;
+  - texte réduit, explications repliées.
+- **Rangs et XP**, de « Recrue » à « Légende du miroir » : le rang monte avec la routine, la régularité et la qualité des photos. Le visage n'entre jamais dans le calcul.
+- **Indice de symétrie** donné en fourchette et **score de qualité photo** sur 100.
+- **CI** (`.github/workflows/ci.yml`) :
+  - compilation et tests unitaires ;
+  - tests de bout en bout, dont un scan réel par la galerie et par la caméra simulée ;
+  - mise en ligne sur GitHub Pages seulement si tout passe ;
+  - rapport avec captures d'écran sur la branche `ci-report`.
+
 **1.1.0**
 - **Caméra intégrée** : viseur dans l'application, guide ovale, retardateur de 10 s, bascule avant/arrière. La caméra s'éteint à la capture, en quittant l'écran ou en arrière-plan.
 - **Application installable (PWA)** : icône sur l'écran d'accueil, plein écran, fonctionnement hors ligne, sans compte.

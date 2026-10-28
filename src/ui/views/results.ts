@@ -1,165 +1,186 @@
-import { h } from "../dom.js";
-import { button, card, details, icon, levelBadge, linkButton, notice, pageHeader, sourceList } from "../components.js";
+import { h, svg } from "../dom.js";
+import { button, details, icon, levelBadge, linkButton, notice, sourceList } from "../components.js";
 import { drawOverlay } from "../overlay.js";
 import { persistHistory, state } from "../../app/state.js";
 import { go } from "../../app/router.js";
-import { EXCLUDED, GROUPS, METRICS, SOURCES, type MetricGroup } from "../../analysis/metrics.js";
-import { describe, formatRange, LEVEL_LABEL, type MetricObservation } from "../../analysis/observations.js";
+import { EXCLUDED, METRICS, SOURCES } from "../../analysis/metrics.js";
+import { describe, formatRange, formatValue, type MetricObservation } from "../../analysis/observations.js";
+import { leversFor, qualityScore, symmetryIndex } from "../../analysis/summary.js";
 import { appendSession, compareSessions, toStored } from "../../analysis/history.js";
-import { abandonCapture } from "./analyse.js";
+import { abandonCapture, lastScanXp } from "./analyse.js";
+import type { MetricId } from "../../analysis/geometry.js";
 
-let saved = false;
 let savedFor: string | null = null;
+
+export function gauge(value: number | null, label: string, sub?: string): SVGElement | HTMLElement {
+  const R = 52, C = 2 * Math.PI * R;
+  const pct = value === null ? 0 : Math.max(0, Math.min(100, value)) / 100;
+  return h(
+    "div",
+    { class: "gauge", role: "img", "aria-label": value === null ? `${label} : non mesurable` : `${label} : ${value} %${sub ? `, ${sub}` : ""}` },
+    svg("svg", { viewBox: "0 0 128 128", "aria-hidden": "true" },
+      svg("circle", { cx: 64, cy: 64, r: R, class: "gauge-track" }),
+      svg("circle", { cx: 64, cy: 64, r: R, class: "gauge-fill", "stroke-dasharray": `${C * pct} ${C}`, transform: "rotate(-90 64 64)" }),
+    ),
+    h("div", { class: "gauge-center" }, h("span", { class: "gauge-value" }, value === null ? "—" : `${value} %`), h("span", { class: "gauge-label" }, label)),
+  );
+}
+
+function statCard(title: string, value: string, chip: HTMLElement | null, foot: string, ...more: Array<Node | null>): HTMLElement {
+  return h(
+    "details",
+    { class: "stat-card" },
+    h("summary", null, h("span", { class: "stat-card-title" }, title), h("span", { class: "stat-card-value" }, value), chip, h("span", { class: "stat-card-foot" }, foot)),
+    h("div", { class: "stat-card-body" }, ...more),
+  );
+}
+
+function obs(id: MetricId): MetricObservation | undefined {
+  return state.result?.observations.find((o) => o.id === id);
+}
+
+function metricCard(title: string, id: MetricId): HTMLElement {
+  const o = obs(id);
+  const def = METRICS[id];
+  if (!o) return h("span");
+  const visible = o.level !== "uncertain" && o.estimate !== undefined;
+  return statCard(
+    title,
+    visible ? formatValue(def.kind, o.estimate!) : "—",
+    levelBadge(o.level),
+    visible ? `Plage ${formatRange(o)}` : "Non mesurable ici",
+    h("p", null, h("strong", null, def.name), " · ", def.what),
+    h("p", null, describe(o)),
+    o.influences.length ? h("ul", { class: "small" }, o.influences.map((f) => h("li", null, f))) : null,
+    h("p", { class: "small muted" }, def.meaning),
+    sourceList(def.sources),
+  );
+}
 
 export function renderResults(root: HTMLElement): void {
   if (state.settings.adult !== true) state.result = null;
   const r = state.result;
   if (!r) {
-    root.append(pageHeader("Résultats"), card(null, h("p", null, "Aucune analyse dans cette séance. Les résultats ne sont pas conservés après fermeture, sauf si vous activez l'historique."), h("div", { class: "button-row" }, linkButton("Faire une analyse", "#analyse", { icon: "scan" }))));
+    root.append(
+      h("header", { class: "scan-header" }, h("h1", { id: "page-title", tabindex: "-1" }, "Résultat")),
+      h("div", { class: "card center" }, h("p", null, "Aucun scan pour l'instant."), h("div", { class: "button-row center" }, linkButton("Lancer un scan", "#analyse", { icon: "scan" }))),
+    );
     return;
   }
-  if (savedFor !== r.createdAt) {
-    saved = false;
-    savedFor = r.createdAt;
-  }
-  const counts = { reliable: 0, confirm: 0, uncertain: 0 };
-  r.observations.forEach((o) => counts[o.level]++);
+  const photos = state.capture?.photos ?? [];
+  const sym = symmetryIndex(r.observations);
+  const quality = qualityScore(photos);
 
   root.appendChild(
-    pageHeader(
-      "Vos observations",
-      `${r.photos} photo${r.photos > 1 ? "s" : ""} retenue${r.photos > 1 ? "s" : ""} · ${r.mode === "auto" ? "repérage automatique" : "repérage manuel"} · ${r.distance === "far" ? "prise à 1 m ou plus" : r.distance === "near" ? "prise à bout de bras" : "distance inconnue"}`,
+    h("header", { class: "scan-header" },
+      h("h1", { id: "page-title", tabindex: "-1" }, "Ton résultat"),
+      h("p", { class: "muted small" }, `${r.photos} image${r.photos > 1 ? "s" : ""} · ${r.mode === "auto" ? "scan automatique" : "repérage manuel"} · ${new Date(r.createdAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`),
     ),
   );
 
+  if (r.blockedReasons?.length && !r.photos) {
+    root.appendChild(notice("block", h("p", null, h("strong", null, "Photo refusée : "), [...new Set(r.blockedReasons)].join(" "))));
+  }
+  if (lastScanXp > 0) root.appendChild(h("p", { class: "xp-toast" }, icon("check", 16), ` +${lastScanXp} XP · scan de qualité cette semaine`));
+
+  // Héros : photo + jauge de symétrie
+  const hero = h("section", { class: "hero-card" });
+  const cap = state.capture;
+  if (cap && cap.images.length && cap.photos.length) {
+    const c = h("canvas", { class: "hero-photo", role: "img", "aria-label": "Repères utilisés sur ta photo" });
+    drawOverlay(c, cap.images[0].canvas, cap.photos[0].points, { axes: true, crop: true });
+    hero.appendChild(c);
+  }
+  hero.appendChild(
+    h(
+      "div",
+      { class: "hero-side" },
+      gauge(sym.value, "Symétrie"),
+      sym.value !== null
+        ? h("p", { class: "muted small center" }, `Plage ${sym.low}–${sym.high} %`)
+        : h("p", { class: "muted small center" }, r.photos ? "Marge d'erreur trop grande" : "Photo inexploitable"),
+      details("C'est quoi ?", h("p", { class: "small" }, "Moyenne des écarts gauche-droite mesurés (yeux, nez, bouche, menton). Tous les visages sont un peu asymétriques, et 100 % n'est pas un idéal : les visages parfaitement symétriques sont jugés moins attrayants. Ce n'est pas une note de beauté."), sourceList([SOURCES.rhodes2006, SOURCES.pound2014])),
+    ),
+  );
+  root.appendChild(hero);
+
+  // Cartes
+  const qualityCard = statCard(
+    "Qualité photo",
+    `${quality.score}/100`,
+    null,
+    quality.tip ? "Touche pour le conseil" : "Rien à redire",
+    quality.tip ? h("p", null, quality.tip) : h("p", null, "Netteté, lumière et pose sont bonnes."),
+    h("p", { class: "small muted" }, "Plus la photo est propre, plus les mesures sont précises. C'est la partie que tu contrôles à 100 %."),
+  );
   root.appendChild(
-    card(
-      null,
-      h("p", { class: "summary-line" }, h("strong", null, `${counts.reliable} fiable${counts.reliable > 1 ? "s" : ""}`), ` · ${counts.confirm} à confirmer · ${counts.uncertain} masquée${counts.uncertain > 1 ? "s" : ""}`),
-      h("p", null, "Il n'y a pas de note globale : chaque mesure est présentée seule, avec sa marge d'erreur. Une mesure est masquée quand la marge d'erreur dépasse ce qu'elle cherche à mesurer."),
-      r.photos < 3 ? notice("info", h("p", null, `Avec ${r.photos === 1 ? "une seule photo" : "deux photos"}, aucune mesure ne peut être confirmée. Ajoutez des photos prises dans les mêmes conditions pour réduire l'incertitude.`)) : null,
+    h("div", { class: "stat-grid" },
+      qualityCard,
+      metricCard("Yeux", "eyeWidthRatio"),
+      metricCard("Bas du visage", "lowerFaceRatio"),
+      metricCard("Nez / yeux", "noseIntercanthalRatio"),
+    ),
+  );
+
+  // Détail symétrie
+  const symIds: MetricId[] = ["outerCanthusOffset", "eyeWidthDiff", "alarOffset", "mouthCornerOffset", "mouthLineAngle", "subnasaleMidline", "stomionMidline", "mentonMidline", "mouthNoseRatio"];
+  root.appendChild(
+    h("section", { class: "card compact" },
       details(
-        "Comment lire les niveaux",
-        h(
-          "ul",
-          { class: "legend" },
-          h("li", null, levelBadge("reliable"), " 3 photos concordantes ou plus, marge d'erreur faible, aucune condition défavorable."),
-          h("li", null, levelBadge("confirm"), " Valeur indicative : reprenez des photos dans de meilleures conditions pour la confirmer."),
-          h("li", null, levelBadge("uncertain"), " La marge d'erreur est trop grande : la valeur n'est pas affichée."),
-        ),
-        h("p", { class: "muted small" }, "La marge d'erreur combine la précision connue des repères faciaux et l'écart entre vos photos. Les seuils sont provisoires et seront calibrés sur des mesures réelles."),
-        sourceList([SOURCES.wflw, SOURCES.mediapipeRepeat]),
+        "Toutes les mesures",
+        h("ul", { class: "metric-rows" }, symIds.map((id) => {
+          const o = obs(id)!;
+          return h("li", null, h("span", null, METRICS[id].name), h("span", { class: "metric-row-right" }, o.level !== "uncertain" && o.estimate !== undefined ? formatValue(METRICS[id].kind, o.estimate) : "—", levelBadge(o.level)));
+        })),
+        h("p", { class: "small muted" }, "« Gauche » et « droite » = côtés de la photo. Une valeur est masquée quand la marge d'erreur est plus grande qu'elle."),
       ),
     ),
   );
 
-  // Visualisation des repères (dernière photo de la séance, en mémoire uniquement).
-  const cap = state.capture;
-  if (cap && cap.images.length && cap.photos.length) {
-    const i = cap.images.length - 1;
-    const canvas = h("canvas", { class: "review-canvas", role: "img", "aria-label": "Repères placés sur la dernière photo" });
-    drawOverlay(canvas, cap.images[i].canvas, cap.photos[i].points, { axes: true, crop: true });
-    root.appendChild(card("Repères utilisés", canvas, h("p", { class: "muted small" }, "Image conservée en mémoire seulement le temps de cette page.")));
-  }
-
-  for (const g of Object.keys(GROUPS) as MetricGroup[]) {
-    const obs = r.observations.filter((o) => METRICS[o.id].group === g);
-    root.appendChild(groupCard(g, obs));
-  }
-
+  // Leviers
   root.appendChild(
-    card(
-      "Ce qu'il faut retenir",
-      h("p", null, "La diversité des visages est normale. Ce que la recherche relie le plus à l'attrait perçu est en partie modifiable : une peau protégée du soleil, le sommeil, l'expression, et la façon dont la photo est prise. La structure osseuse, elle, ne se « corrige » pas avec des exercices."),
-      sourceList([SOURCES.rhodes2006, SOURCES.ward2018]),
-      h("div", { class: "button-row" }, linkButton("Mon programme personnalisé", "#programme", { icon: "list" })),
+    h("section", { class: "levers" },
+      h("h2", { class: "section-title" }, "Tes leviers"),
+      h("div", { class: "lever-row" }, leversFor(r).map((l) => h("a", { href: "#programme", class: "lever" }, icon("arrow", 16), l.label))),
     ),
   );
 
-  root.appendChild(
-    card(
-      "Ce que Reflet ne mesure pas, et pourquoi",
-      h("ul", { class: "excluded" }, EXCLUDED.map((e) => h("li", null, h("strong", null, e.name), h("span", null, e.reason)))),
-    ),
-  );
-
-  // Historique et comparaison
-  const historyCard = card("Historique");
-  if (!state.settings.historyEnabled) {
-    historyCard.append(h("p", null, "L'historique est désactivé : ces résultats disparaîtront à la fermeture. Vous pouvez l'activer dans « Mes données » (mesures chiffrées sur cet appareil, jamais les photos)."), h("div", { class: "button-row" }, linkButton("Mes données", "#donnees", { variant: "ghost", icon: "shield" })));
-  } else {
+  // Historique (si activé)
+  if (state.settings.historyEnabled) {
     const prev = [...state.history].reverse().find((s) => s.createdAt !== r.createdAt);
+    const box = h("section", { class: "card compact" });
     if (prev) {
       const cmp = compareSessions(prev, toStored(r));
-      if (!cmp.comparable) historyCard.append(notice("info", h("p", null, `Comparaison impossible avec la séance du ${new Date(prev.createdAt).toLocaleDateString("fr-FR")} : ${cmp.reason}`)));
-      else if (!cmp.changes.length) historyCard.append(h("p", null, "Aucune mesure assez fiable dans les deux séances pour être comparée."));
-      else {
-        historyCard.append(
-          h("p", null, `Comparaison avec la séance du ${new Date(prev.createdAt).toLocaleDateString("fr-FR")} (mêmes conditions) :`),
-          h("ul", { class: "compare" }, cmp.changes.map((c) => h("li", null, h("span", null, METRICS[c.id].name), h("span", { class: c.kind === "changed" ? "tag tag-change" : "tag" }, c.kind === "changed" ? "Différence au-delà de la marge d'erreur" : "Pas de changement mesurable")))),
-          h("p", { class: "muted small" }, "Une différence vient le plus souvent d'un changement de lumière, d'angle ou d'expression : les traits osseux d'un adulte ne changent pas en quelques semaines."),
-        );
-      }
+      box.appendChild(h("p", { class: "small" }, !cmp.comparable ? `Pas comparable au scan précédent : ${cmp.reason}` : cmp.changes.some((c) => c.kind === "changed") ? "Certaines mesures diffèrent du scan précédent (souvent la lumière ou l'angle)." : "Aucun changement mesurable depuis le scan précédent."));
     }
-    const saveBtn = button(saved ? "Enregistré" : "Enregistrer les mesures (sans photo)", async () => {
+    const saveBtn = button(savedFor === r.createdAt ? "Enregistré" : "Enregistrer ce scan", async () => {
       state.history = appendSession(state.history, toStored(r));
-      const ok = await persistHistory();
-      saved = ok;
-      saveBtn.replaceWith(ok ? h("p", { class: "muted" }, icon("check", 16), " Mesures enregistrées et chiffrées sur cet appareil.") : notice("warn", h("p", null, "Le stockage de ce navigateur est indisponible : rien n'a été enregistré.")));
-    }, { variant: "ghost", icon: "check", disabled: saved });
-    historyCard.append(saveBtn);
+      if (await persistHistory()) {
+        savedFor = r.createdAt;
+        saveBtn.replaceWith(h("p", { class: "muted small" }, icon("check", 14), " Enregistré (chiffré, sans photo)."));
+      }
+    }, { variant: "ghost", icon: "check", disabled: savedFor === r.createdAt });
+    box.appendChild(saveBtn);
+    root.appendChild(box);
   }
-  root.appendChild(historyCard);
 
   root.appendChild(
-    h(
-      "div",
-      { class: "button-row" },
-      button("Nouvelle analyse", () => {
+    h("section", { class: "card compact" },
+      details("Ce que Reflet ne mesure pas", h("ul", { class: "excluded" }, EXCLUDED.map((e) => h("li", null, h("strong", null, e.name), h("span", null, e.reason))))),
+    ),
+  );
+
+  root.appendChild(
+    h("div", { class: "button-row" },
+      button("Nouveau scan", () => {
         abandonCapture();
         go("analyse");
-      }, { variant: "ghost", icon: "scan" }),
-      button("Effacer ces résultats", () => {
+      }, { icon: "scan" }),
+      button("Effacer", () => {
         abandonCapture();
         state.result = null;
         go("accueil");
       }, { variant: "quiet", icon: "trash" }),
     ),
   );
-}
-
-function groupCard(g: MetricGroup, obs: MetricObservation[]): HTMLElement {
-  const G = GROUPS[g];
-  const c = card(G.title, h("p", { class: "muted small" }, G.intro));
-  const list = h("div", { class: "obs-list" });
-  for (const o of obs) list.appendChild(observationRow(o));
-  c.appendChild(list);
-  // Explications communes au groupe (sens, limites, sources).
-  const def = METRICS[obs[0].id];
-  c.appendChild(details("Ce que cela signifie", h("p", null, def.meaning), h("p", null, h("strong", null, "Améliorations possibles et limites : "), def.improve), sourceList(dedupe(obs.flatMap((o) => METRICS[o.id].sources)))));
-  return c;
-}
-
-function observationRow(o: MetricObservation): HTMLElement {
-  const def = METRICS[o.id];
-  const range = formatRange(o);
-  return h(
-    "article",
-    { class: `obs obs-${o.level}`, "aria-label": `${def.name} : ${LEVEL_LABEL[o.level]}` },
-    h("div", { class: "obs-head" }, h("h3", null, def.name), levelBadge(o.level)),
-    h("p", { class: "obs-text" }, describe(o)),
-    o.level !== "uncertain" && range ? h("p", { class: "obs-range" }, "Plage plausible : ", h("strong", null, range)) : null,
-    details(
-      "Détails",
-      h("p", null, h("strong", null, "Mesure : "), def.what),
-      h("p", null, h("strong", null, "Photos utilisées : "), String(o.photosUsed)),
-      o.influences.length ? h("div", null, h("strong", null, "Facteurs qui influencent ce résultat :"), h("ul", null, o.influences.map((f) => h("li", null, f)))) : null,
-      o.id !== "eyeWidthDiff" && METRICS[o.id].group === "symmetry" ? null : h("p", null, def.meaning),
-    ),
-  );
-}
-
-function dedupe<T extends { url: string }>(xs: T[]): T[] {
-  const seen = new Set<string>();
-  return xs.filter((x) => (seen.has(x.url) ? false : (seen.add(x.url), true)));
 }

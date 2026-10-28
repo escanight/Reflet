@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "playwright";
 import { startServer } from "../scripts/serve.mjs";
+import { forceManual, onboard as onboardH, shot } from "./helpers.mjs";
 
 const PORT = 4230;
 const ORIGIN = `http://127.0.0.1:${PORT}`;
@@ -29,24 +30,21 @@ after(async () => {
   parent?.close();
 });
 
-async function onboard(frameOrPage) {
-  await frameOrPage.getByRole("button", { name: "Commencer" }).click();
-  await frameOrPage.getByRole("button", { name: "J'ai compris" }).click();
-  await frameOrPage.getByRole("button", { name: "Oui, 18 ans ou plus" }).click();
-}
+const onboard = (p) => onboardH(p);
 
 test("caméra intégrée : viseur, capture, caméra éteinte, passage au repérage", async () => {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, permissions: ["camera"] });
   const page = await ctx.newPage();
+  await page.addInitScript(forceManual);
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto(`${ORIGIN}/`);
   await onboard(page);
-  await page.goto(`${ORIGIN}/#analyse`);
-  await page.getByTestId("open-camera").tap();
+  await page.getByTestId("cta-scan").tap();
   await page.waitForFunction(() => (document.querySelector("video")?.videoWidth ?? 0) > 0, null, { timeout: 10000 });
-  await page.getByRole("button", { name: "Prendre la photo" }).tap();
-  await page.locator(".landmark-canvas").waitFor({ timeout: 10000 });
+  await shot(page, "10-camera");
+  await page.getByRole("button", { name: "Lancer le scan" }).tap();
+  await page.locator(".landmark-canvas").waitFor({ timeout: 15000 });
   assert.equal(await page.locator("video").count(), 0, "plus aucun flux vidéo après la capture");
   assert.deepEqual(errors, []);
   await ctx.close();
@@ -58,7 +56,6 @@ test("caméra : quitter l'écran l'éteint", async () => {
   await page.goto(`${ORIGIN}/`);
   await onboard(page);
   await page.goto(`${ORIGIN}/#analyse`);
-  await page.getByTestId("open-camera").click();
   await page.waitForFunction(() => (document.querySelector("video")?.videoWidth ?? 0) > 0, null, { timeout: 10000 });
   const trackRef = await page.evaluateHandle(() => document.querySelector("video").srcObject.getTracks()[0]);
   await page.goto(`${ORIGIN}/#programme`);
@@ -72,9 +69,8 @@ test("visionneuse qui bloque la caméra : message clair, choix de photo toujours
   await page.goto(`http://127.0.0.1:${PORT + 1}/`);
   const f = page.frameLocator("#f");
   await onboard(f);
-  await f.getByRole("link", { name: "Commencer une analyse" }).click();
-  await f.getByTestId("open-camera").click();
-  await f.getByText(/interdit l'accès à la caméra|accès à la caméra a été refusé/).waitFor({ timeout: 10000 });
+  await f.getByTestId("cta-scan").click();
+  await f.getByText(/bloque la caméra|Accès à la caméra refusé/).waitFor({ timeout: 10000 });
   assert.equal(await f.getByTestId("file-gallery").count(), 1);
   await ctx.close();
 });
@@ -89,7 +85,7 @@ test("image piégée (en-tête 50 000 × 50 000) refusée avant décodage", asyn
   Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, 0, 0, 0xc3, 0x50, 0, 0, 0xc3, 0x50, 8, 6]).copy(png);
   const file = join(mkdtempSync(join(tmpdir(), "reflet-")), "bombe.png");
   writeFileSync(file, png);
-  await page.getByTestId("file-gallery").setInputFiles(file);
+  await page.getByTestId("file-gallery").first().setInputFiles(file);
   await page.getByText("dimensions de cette image sont démesurées").waitFor();
   await ctx.close();
 });

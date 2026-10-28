@@ -1,0 +1,84 @@
+# Construit Reflet avec le vrai modèle MediaPipe, lance tous les tests
+# (dont un scan réel sur une photo et une caméra simulée), publie sur
+# GitHub Pages seulement si tout est vert, et renvoie un rapport avec
+# des captures d'écran sur la branche ci-report.
+name: CI et mise en ligne
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Dépendances
+        run: npm install --no-audit --no-fund
+
+      - name: Navigateur de test
+        run: npx playwright install --with-deps chromium
+
+      - name: Modèle MediaPipe (auto-hébergé)
+        run: npm run setup:vendor
+
+      - name: Photo de test réelle (jeu de test officiel MediaPipe) et vidéo pour la caméra simulée
+        run: |
+          mkdir -p e2e/fixtures/real
+          curl -fsSL -o e2e/fixtures/real/portrait.jpg https://storage.googleapis.com/mediapipe-assets/portrait.jpg \
+            || { echo "Photo de test indisponible : tests du modèle réel ignorés" | tee test-fixture.log; exit 0; }
+          ffmpeg -loglevel error -y -loop 1 -i e2e/fixtures/real/portrait.jpg -t 4 -r 15 \
+            -vf "scale=720:-2,pad=ceil(iw/2)*2:ceil(ih/2)*2,format=yuv420p" e2e/fixtures/real/portrait.y4m
+
+      - name: Compilation
+        run: npm run build
+
+      - name: Tests unitaires
+        run: npm test 2>&1 | tee test-unit.log
+
+      - name: Tests de bout en bout (dont modèle réel)
+        env:
+          REFLET_SCREENSHOTS: ci-screens
+        run: npm run e2e 2>&1 | tee test-e2e.log
+
+      - name: Rapport (captures et journaux) sur la branche ci-report
+        if: always()
+        run: |
+          mkdir -p /tmp/report
+          cp -r ci-screens /tmp/report/ 2>/dev/null || true
+          cp test-*.log /tmp/report/ 2>/dev/null || true
+          cat public/vendor/mediapipe/VERSION.txt > /tmp/report/vendor.txt 2>/dev/null || true
+          echo "${{ github.sha }} ${{ job.status }}" > /tmp/report/STATUS.txt
+          cd /tmp/report
+          git init -q -b ci-report
+          git config user.name "reflet-ci"
+          git config user.email "reflet-ci@users.noreply.github.com"
+          git add -A
+          git commit -qm "Rapport CI ${{ github.sha }}"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" ci-report
+
+      - name: Mise en ligne (GitHub Pages, branche gh-pages)
+        run: |
+          rm -f site/_headers
+          touch site/.nojekyll
+          cd site
+          git init -q -b gh-pages
+          git config user.name "reflet-ci"
+          git config user.email "reflet-ci@users.noreply.github.com"
+          git add -A
+          git commit -qm "Publication ${{ github.sha }}"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" gh-pages
