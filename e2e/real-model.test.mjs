@@ -57,7 +57,7 @@ test("modèle réel : photo de la galerie → détection automatique → résult
   assert.equal(zones.length, 4);
   assert.ok(zones.filter((z) => /\/10/.test(z)).length >= 3, "yeux, nez, bouche, menton notés sur la photo réelle");
   await shot(page, "21-resultat-modele-reel");
-  await page.getByText("Mesures du visage (détail)").click();
+  await page.getByText(/Les chiffres pour les geeks/).click();
   await shot(page, "22-resultat-detail");
   assert.deepEqual(external, [], "aucune requête externe, modèle compris");
   assert.deepEqual(errors, []);
