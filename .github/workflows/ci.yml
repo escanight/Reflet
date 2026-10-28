@@ -34,18 +34,24 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Modèle MediaPipe (auto-hébergé)
-        run: npm run setup:vendor
+        run: npm run setup:vendor 2>&1 | tee test-vendor.log
 
       - name: Photo de test réelle (jeu de test officiel MediaPipe) et vidéo pour la caméra simulée
         run: |
           mkdir -p e2e/fixtures/real
-          curl -fsSL -o e2e/fixtures/real/portrait.jpg https://storage.googleapis.com/mediapipe-assets/portrait.jpg \
-            || { echo "Photo de test indisponible : tests du modèle réel ignorés" | tee test-fixture.log; exit 0; }
-          ffmpeg -loglevel error -y -loop 1 -i e2e/fixtures/real/portrait.jpg -t 4 -r 15 \
-            -vf "scale=720:-2,pad=ceil(iw/2)*2:ceil(ih/2)*2,format=yuv420p" e2e/fixtures/real/portrait.y4m
+          {
+            curl -fsSL -o e2e/fixtures/real/portrait.jpg https://storage.googleapis.com/mediapipe-assets/portrait.jpg \
+              && echo "photo OK ($(stat -c %s e2e/fixtures/real/portrait.jpg) octets)" || echo "photo indisponible"
+            if [ -f e2e/fixtures/real/portrait.jpg ]; then
+              command -v ffmpeg >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg >/dev/null; }
+              ffmpeg -loglevel error -y -loop 1 -i e2e/fixtures/real/portrait.jpg -t 4 -r 15 \
+                -vf "scale=720:-2,pad=ceil(iw/2)*2:ceil(ih/2)*2,format=yuv420p" -f yuv4mpegpipe e2e/fixtures/real/portrait.y4m \
+                && echo "vidéo OK" || echo "vidéo impossible : test caméra réel ignoré"
+            fi
+          } 2>&1 | tee test-fixture.log
 
       - name: Compilation
-        run: npm run build
+        run: npm run build 2>&1 | tee test-build.log
 
       - name: Tests unitaires
         run: npm test 2>&1 | tee test-unit.log
