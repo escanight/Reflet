@@ -36,6 +36,8 @@ interface FaceLandmarkerLike {
 }
 
 let instance: FaceLandmarkerLike | null = null;
+/** Passe en calcul CPU si l'accélération graphique pose problème sur cet appareil. */
+let cpuOnly = false;
 let loading: Promise<FaceLandmarkerLike> | null = null;
 
 export type Availability = { available: true } | { available: false; reason: string };
@@ -78,11 +80,14 @@ async function create(): Promise<FaceLandmarkerLike> {
     outputFaceBlendshapes: true,
     outputFacialTransformationMatrixes: true,
   });
-  try {
-    return await vision.FaceLandmarker.createFromOptions(fileset, options("GPU"));
-  } catch {
-    return await vision.FaceLandmarker.createFromOptions(fileset, options("CPU"));
+  if (!cpuOnly) {
+    try {
+      return await vision.FaceLandmarker.createFromOptions(fileset, options("GPU"));
+    } catch {
+      cpuOnly = true;
+    }
   }
+  return await vision.FaceLandmarker.createFromOptions(fileset, options("CPU"));
 }
 
 export async function loadDetector(): Promise<void> {
@@ -124,10 +129,24 @@ export function poseFromLandmarks(lm: readonly NormalizedLandmark[], w: number, 
   return { yawDeg: deg(yaw), pitchDeg: deg(pitch) };
 }
 
+function runDetect(canvas: HTMLCanvasElement) {
+  if (!instance) throw new Error("Détecteur indisponible.");
+  return instance.detect(canvas);
+}
+
 export async function detect(canvas: HTMLCanvasElement): Promise<Detection> {
   await loadDetector();
-  if (!instance) throw new Error("Détecteur indisponible.");
-  const res = instance.detect(canvas);
+  let res: ReturnType<FaceLandmarkerLike["detect"]>;
+  try {
+    res = runDetect(canvas);
+  } catch (e) {
+    // Échec avec l'accélération graphique : on recrée le détecteur en CPU et on réessaie une fois.
+    if (cpuOnly) throw e;
+    releaseDetector();
+    cpuOnly = true;
+    await loadDetector();
+    res = runDetect(canvas);
+  }
   const faceCount = res.faceLandmarks.length;
   if (faceCount === 0) return { faceCount: 0, points: null, landmarksPx: [], pose: null, expression: null };
   const lm = res.faceLandmarks[0];

@@ -57,6 +57,15 @@ export function setupInstall(): void {
   });
   const secure = location.protocol === "https:" || location.hostname === "127.0.0.1" || location.hostname === "localhost";
   if (!isFramed() && secure && "serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js", { scope: "./" }).catch(() => undefined);
+    const hadController = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.register("sw.js", { scope: "./", updateViaCache: "none" }).then((reg) => reg.update()).catch(() => undefined);
+    // Nouvelle version installée : on recharge une seule fois pour l'utiliser tout de suite.
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (hadController && !reloaded) {
+        reloaded = true;
+        location.reload();
+      }
+    });
   }
 }

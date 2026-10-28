@@ -87,6 +87,12 @@ export interface MetricObservation {
   influences: string[];
   /** Raison du masquage, le cas échéant. */
   hiddenReason?: string;
+  /**
+   * Valeur réellement mesurée (médiane des photos non refusées), même quand la
+   * marge d'erreur est grande. Affichée comme « environ » avec une précision
+   * faible : ce n'est jamais une valeur inventée.
+   */
+  rawEstimate?: number;
   disagreement: boolean;
 }
 
@@ -125,9 +131,11 @@ export function observeMetric(m: MetricId, photos: readonly PhotoAnalysis[], opt
     if (ph.intervals[m] && Number.isFinite(ph.intervals[m].median)) usable.push(ph);
   }
   const n = usable.length;
+  const rawPool = photos.filter((p) => !p.blocked && p.intervals[m] && Number.isFinite(p.intervals[m].median)).map((p) => p.intervals[m].median);
+  const rawEstimate = rawPool.length ? median(rawPool) : undefined;
   if (n === 0) {
     return {
-      id: m, level: "uncertain", photosUsed: 0, influences: [...influences], disagreement: false,
+      id: m, level: "uncertain", photosUsed: 0, influences: [...influences], disagreement: false, rawEstimate,
       hiddenReason: hiding.size ? [...hiding].join(" ") : "Aucune photo exploitable pour cette mesure.",
     };
   }
@@ -161,7 +169,7 @@ export function observeMetric(m: MetricId, photos: readonly PhotoAnalysis[], opt
   else if (n < 3 || sources < 3 || downgraded || disagreement || w > def.reliableWidth) level = "confirm";
   else level = "reliable";
 
-  const obs: MetricObservation = { id: m, level, photosUsed: n, influences: [...influences], disagreement };
+  const obs: MetricObservation = { id: m, level, photosUsed: n, influences: [...influences], disagreement, rawEstimate };
   if (level === "uncertain") {
     obs.hiddenReason = "La marge d'erreur est plus grande que l'écart éventuel : cette mesure n'est pas exploitable sur ces photos.";
   } else {

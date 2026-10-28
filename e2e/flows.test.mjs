@@ -2,7 +2,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
-import { writeFileSync, mkdtempSync } from "node:fs";
+import { writeFileSync, mkdtempSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "playwright";
@@ -193,5 +193,19 @@ test("orientation EXIF respectée (photo de téléphone tournée)", async () => 
   await page.getByTestId("file-gallery").first().setInputFiles(join(FIX, "exif-orientation-6.jpg"));
   const dims = await page.locator(".landmark-canvas").evaluate((c) => [c.width, c.height]);
   assert.deepEqual(dims, [1000, 1200]);
+  await ctx.close();
+});
+
+test("sans modèle automatique : pas de bascule forcée vers les 11 points, seulement sur demande", { skip: existsSync(new URL("../site/vendor/mediapipe/face_landmarker.task", import.meta.url).pathname) && "modèle présent" }, async () => {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await ctx.newPage();
+  await page.goto(`${ORIGIN}/`);
+  await onboard(page);
+  await page.goto(`${ORIGIN}/#analyse`);
+  await page.getByTestId("file-gallery").first().setInputFiles(join(FIX, "visage-synthetique-1.jpg"));
+  await page.getByText("Le scan automatique n'est pas disponible").waitFor({ timeout: 10000 });
+  assert.equal(await page.locator(".landmark-canvas").count(), 0);
+  await page.getByRole("button", { name: "Placer les points moi-même" }).click();
+  await page.locator(".landmark-canvas").waitFor();
   await ctx.close();
 });

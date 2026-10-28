@@ -521,3 +521,9 @@ fieldset.choices legend { font-weight: 650; margin-bottom: .5rem; padding: 0; }
 .menu-item span { display: flex; flex-direction: column; }
 .menu-item small { color: var(--muted); }
 .menu-item > .icon:last-child { color: var(--muted); }
+.scan-header.row { display: flex; align-items: center; justify-content: space-between; gap: .6rem; }
+.xp-pill { padding: .3rem .7rem; border-radius: 999px; background: rgba(138, 215, 160, .14); color: var(--ok); font-weight: 750; font-size: .85rem; }
+.dots { display: inline-flex; gap: 3px; vertical-align: middle; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: #3a3f46; }
+.dot.on { background: var(--accent); }
+.hero-prec { color: var(--muted); font-size: .85rem; margin: .4rem 0 0; display: flex; align-items: center; gap: .3rem; }

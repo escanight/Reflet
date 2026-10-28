@@ -17,17 +17,25 @@ export interface SymmetrySummary {
   low: number | null;
   high: number | null;
   measures: number;
+  /** 3 = fiable, 2 = à confirmer, 1 = indicatif (marge d'erreur large), 0 = rien. */
+  precision: 0 | 1 | 2 | 3;
 }
 
 export function symmetryIndex(obs: readonly MetricObservation[]): SymmetrySummary {
   const usable = obs.filter((o) => OFFSETS.includes(o.id) && o.level !== "uncertain" && o.estimate !== undefined && o.low !== undefined && o.high !== undefined);
-  if (!usable.length) return { value: null, low: null, high: null, measures: 0 };
+  if (!usable.length) {
+    const raw = obs.filter((o) => OFFSETS.includes(o.id) && o.rawEstimate !== undefined);
+    if (!raw.length) return { value: null, low: null, high: null, measures: 0, precision: 0 };
+    const v = Math.max(0, Math.min(100, Math.round(100 - raw.reduce((a, o) => a + Math.abs(o.rawEstimate!), 0) / raw.length)));
+    return { value: v, low: null, high: null, measures: raw.length, precision: 1 };
+  }
   const mean = (f: (o: MetricObservation) => number) => usable.reduce((a, o) => a + f(o), 0) / usable.length;
   const center = mean((o) => Math.abs(o.estimate!));
   const worst = mean((o) => Math.max(Math.abs(o.low!), Math.abs(o.high!)));
   const best = mean((o) => (o.low! <= 0 && o.high! >= 0 ? 0 : Math.min(Math.abs(o.low!), Math.abs(o.high!))));
   const clamp = (v: number) => Math.max(0, Math.min(100, Math.round(100 - v)));
-  return { value: clamp(center), low: clamp(worst), high: clamp(best), measures: usable.length };
+  const precision = usable.every((o) => o.level === "reliable") ? 3 : 2;
+  return { value: clamp(center), low: clamp(worst), high: clamp(best), measures: usable.length, precision };
 }
 
 export interface QualitySummary {

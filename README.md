@@ -91,6 +91,19 @@ Voir `docs/ARCHITECTURE.md` pour les décisions et `docs/VALIDATION.md` pour ce 
 
 ## Journal des corrections
 
+**2.1.0**
+- **Corrigé :** l'ancienne version restait en cache et rouvrait le placement manuel des 11 points. Le cache passe désormais par le réseau d'abord, et l'app se recharge d'elle-même quand une mise à jour arrive.
+- **Plus de bascule automatique vers les 11 points :**
+  - si la détection échoue avec l'accélération graphique, elle réessaie sur le processeur ;
+  - si aucun visage n'est trouvé, elle réessaie sur des recadrages centrés ;
+  - le placement manuel n'apparaît que sur demande explicite.
+- **Résultat simplifié :**
+  - 4 cartes : Qualité photo, Yeux, Bas du visage, Nez ;
+  - les valeurs mesurées sont toujours affichées, précédées de « ≈ » quand la marge d'erreur est large ;
+  - un indicateur de précision en 3 points ;
+  - les détails sont repliés ;
+  - animation plus rapide.
+
 **2.0.0 — refonte**
 - **Scan automatique** :
   - caméra plein cadre, rafale de 3 images, animation de scan pendant le traitement réel ;

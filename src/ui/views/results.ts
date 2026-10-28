@@ -1,23 +1,23 @@
 import { h, svg } from "../dom.js";
-import { button, details, icon, levelBadge, linkButton, notice, sourceList } from "../components.js";
+import { button, details, icon, linkButton, notice, sourceList } from "../components.js";
 import { drawOverlay } from "../overlay.js";
 import { persistHistory, state } from "../../app/state.js";
 import { go } from "../../app/router.js";
-import { EXCLUDED, METRICS, SOURCES } from "../../analysis/metrics.js";
-import { describe, formatRange, formatValue, type MetricObservation } from "../../analysis/observations.js";
+import { METRICS, SOURCES } from "../../analysis/metrics.js";
+import { formatValue, type MetricObservation } from "../../analysis/observations.js";
 import { leversFor, qualityScore, symmetryIndex } from "../../analysis/summary.js";
-import { appendSession, compareSessions, toStored } from "../../analysis/history.js";
+import { appendSession, toStored } from "../../analysis/history.js";
 import { abandonCapture, lastScanXp } from "./analyse.js";
 import type { MetricId } from "../../analysis/geometry.js";
 
 let savedFor: string | null = null;
 
-export function gauge(value: number | null, label: string, sub?: string): SVGElement | HTMLElement {
+export function gauge(value: number | null, label: string): HTMLElement {
   const R = 52, C = 2 * Math.PI * R;
   const pct = value === null ? 0 : Math.max(0, Math.min(100, value)) / 100;
   return h(
     "div",
-    { class: "gauge", role: "img", "aria-label": value === null ? `${label} : non mesurable` : `${label} : ${value} %${sub ? `, ${sub}` : ""}` },
+    { class: "gauge", role: "img", "aria-label": value === null ? `${label} : non mesurable` : `${label} : ${value} %` },
     svg("svg", { viewBox: "0 0 128 128", "aria-hidden": "true" },
       svg("circle", { cx: 64, cy: 64, r: R, class: "gauge-track" }),
       svg("circle", { cx: 64, cy: 64, r: R, class: "gauge-fill", "stroke-dasharray": `${C * pct} ${C}`, transform: "rotate(-90 64 64)" }),
@@ -26,34 +26,52 @@ export function gauge(value: number | null, label: string, sub?: string): SVGEle
   );
 }
 
-function statCard(title: string, value: string, chip: HTMLElement | null, foot: string, ...more: Array<Node | null>): HTMLElement {
-  return h(
-    "details",
-    { class: "stat-card" },
-    h("summary", null, h("span", { class: "stat-card-title" }, title), h("span", { class: "stat-card-value" }, value), chip, h("span", { class: "stat-card-foot" }, foot)),
-    h("div", { class: "stat-card-body" }, ...more),
-  );
+/** Précision en 3 points : ●●● fiable, ●●○ à confirmer, ●○○ indicatif. */
+function dots(n: 0 | 1 | 2 | 3): HTMLElement {
+  const label = ["non mesurable", "indicatif", "à confirmer", "fiable"][n];
+  return h("span", { class: "dots", title: `Précision : ${label}`, "aria-label": `Précision : ${label}` }, [1, 2, 3].map((i) => h("span", { class: i <= n ? "dot on" : "dot" })));
+}
+
+function precisionOf(o: MetricObservation | undefined): 0 | 1 | 2 | 3 {
+  if (!o) return 0;
+  if (o.level === "reliable") return 3;
+  if (o.level === "confirm") return 2;
+  return o.rawEstimate !== undefined ? 1 : 0;
 }
 
 function obs(id: MetricId): MetricObservation | undefined {
   return state.result?.observations.find((o) => o.id === id);
 }
 
-function metricCard(title: string, id: MetricId): HTMLElement {
+function valueText(o: MetricObservation | undefined): string {
+  if (!o) return "—";
+  const def = METRICS[o.id];
+  if (o.level !== "uncertain" && o.estimate !== undefined) return formatValue(def.kind, o.estimate);
+  if (o.rawEstimate !== undefined) return `≈ ${formatValue(def.kind, o.rawEstimate)}`;
+  return "—";
+}
+
+function card(title: string, value: string, prec: 0 | 1 | 2 | 3, foot: string, ...body: Array<Node | null>): HTMLElement {
+  return h(
+    "details",
+    { class: "stat-card" },
+    h("summary", null, h("span", { class: "stat-card-title" }, title), h("span", { class: "stat-card-value" }, value), h("span", { class: "stat-card-foot" }, dots(prec), " ", foot)),
+    h("div", { class: "stat-card-body" }, ...body),
+  );
+}
+
+function metricCard(title: string, id: MetricId, foot: string): HTMLElement {
   const o = obs(id);
   const def = METRICS[id];
-  if (!o) return h("span");
-  const visible = o.level !== "uncertain" && o.estimate !== undefined;
-  return statCard(
+  return card(
     title,
-    visible ? formatValue(def.kind, o.estimate!) : "—",
-    levelBadge(o.level),
-    visible ? `Plage ${formatRange(o)}` : shortReason(o.hiddenReason),
-    h("p", null, h("strong", null, def.name), " · ", def.what),
-    h("p", null, describe(o)),
-    o.influences.length ? h("ul", { class: "small" }, o.influences.map((f) => h("li", null, f))) : null,
+    valueText(o),
+    precisionOf(o),
+    foot,
+    h("p", null, def.what),
+    o && o.influences.length ? h("p", { class: "small muted" }, o.influences[0]) : null,
+    o?.hiddenReason ? h("p", { class: "small muted" }, o.hiddenReason) : null,
     h("p", { class: "small muted" }, def.meaning),
-    sourceList(def.sources),
   );
 }
 
@@ -72,103 +90,74 @@ export function renderResults(root: HTMLElement): void {
   const quality = qualityScore(photos);
 
   root.appendChild(
-    h("header", { class: "scan-header" },
+    h("header", { class: "scan-header row" },
       h("h1", { id: "page-title", tabindex: "-1" }, "Ton résultat"),
-      h("p", { class: "muted small" }, `${r.photos} image${r.photos > 1 ? "s" : ""} · ${r.mode === "auto" ? "scan automatique" : "repérage manuel"} · ${new Date(r.createdAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`),
+      lastScanXp > 0 ? h("span", { class: "xp-pill" }, `+${lastScanXp} XP`) : null,
     ),
   );
-
   if (r.blockedReasons?.length && !r.photos) {
-    root.appendChild(notice("block", h("p", null, h("strong", null, "Photo refusée : "), [...new Set(r.blockedReasons)].join(" "))));
+    root.appendChild(notice("block", h("p", null, [...new Set(r.blockedReasons)].join(" "))));
   }
-  if (lastScanXp > 0) root.appendChild(h("p", { class: "xp-toast" }, icon("check", 16), ` +${lastScanXp} XP · scan de qualité cette semaine`));
 
-  // Héros : photo + jauge de symétrie
+  // Héros
   const hero = h("section", { class: "hero-card" });
   const cap = state.capture;
   if (cap && cap.images.length && cap.photos.length) {
-    const c = h("canvas", { class: "hero-photo", role: "img", "aria-label": "Repères utilisés sur ta photo" });
+    const c = h("canvas", { class: "hero-photo", role: "img", "aria-label": "Repères sur ta photo" });
     drawOverlay(c, cap.images[0].canvas, cap.photos[0].points, { axes: true, crop: true });
     hero.appendChild(c);
   }
   hero.appendChild(
-    h(
-      "div",
-      { class: "hero-side" },
+    h("div", { class: "hero-side" },
       gauge(sym.value, "Symétrie"),
-      sym.value !== null
-        ? h("p", { class: "muted small center" }, `Plage ${sym.low}–${sym.high} %`)
-        : h("p", { class: "muted small center" }, r.photos ? "Marge d'erreur trop grande" : "Photo inexploitable"),
-      details("C'est quoi ?", h("p", { class: "small" }, "Moyenne des écarts gauche-droite mesurés (yeux, nez, bouche, menton). Tous les visages sont un peu asymétriques, et 100 % n'est pas un idéal : les visages parfaitement symétriques sont jugés moins attrayants. Ce n'est pas une note de beauté."), sourceList([SOURCES.rhodes2006, SOURCES.pound2014])),
+      h("p", { class: "hero-prec" }, dots(sym.precision), sym.low !== null ? ` ${sym.low}–${sym.high} %` : sym.precision === 1 ? " indicatif" : ""),
     ),
   );
   root.appendChild(hero);
 
-  // Cartes
-  const qualityCard = statCard(
-    "Qualité photo",
-    `${quality.score}/100`,
-    null,
-    quality.tip ? "Touche pour le conseil" : "Rien à redire",
-    quality.tip ? h("p", null, quality.tip) : h("p", null, "Netteté, lumière et pose sont bonnes."),
-    h("p", { class: "small muted" }, "Plus la photo est propre, plus les mesures sont précises. C'est la partie que tu contrôles à 100 %."),
-  );
   root.appendChild(
     h("div", { class: "stat-grid" },
-      qualityCard,
-      metricCard("Yeux", "eyeWidthRatio"),
-      metricCard("Bas du visage", "lowerFaceRatio"),
-      metricCard("Nez / yeux", "noseIntercanthalRatio"),
+      card("Qualité photo", `${quality.score}/100`, quality.score >= 85 ? 3 : quality.score >= 60 ? 2 : 1, quality.score >= 85 ? "Top" : "Touche pour un conseil",
+        quality.tip ? h("p", null, quality.tip) : h("p", null, "Netteté, lumière et pose : parfait."),
+        h("p", { class: "small muted" }, "Une photo propre = des mesures plus précises.")),
+      metricCard("Yeux", "eyeWidthRatio", "œil / écart"),
+      metricCard("Bas du visage", "lowerFaceRatio", "lèvre / menton"),
+      metricCard("Nez", "noseIntercanthalRatio", "nez / écart des yeux"),
     ),
   );
 
-  // Détail symétrie
-  const symIds: MetricId[] = ["outerCanthusOffset", "eyeWidthDiff", "alarOffset", "mouthCornerOffset", "mouthLineAngle", "subnasaleMidline", "stomionMidline", "mentonMidline", "mouthNoseRatio"];
-  root.appendChild(
-    h("section", { class: "card compact" },
-      details(
-        "Toutes les mesures",
-        h("ul", { class: "metric-rows" }, symIds.map((id) => {
-          const o = obs(id)!;
-          return h("li", null, h("span", null, METRICS[id].name), h("span", { class: "metric-row-right" }, o.level !== "uncertain" && o.estimate !== undefined ? formatValue(METRICS[id].kind, o.estimate) : "—", levelBadge(o.level)));
-        })),
-        h("p", { class: "small muted" }, "« Gauche » et « droite » = côtés de la photo. Une valeur est masquée quand la marge d'erreur est plus grande qu'elle."),
-      ),
-    ),
-  );
-
-  // Leviers
   root.appendChild(
     h("section", { class: "levers" },
-      h("h2", { class: "section-title" }, "Tes leviers"),
+      h("h2", { class: "section-title" }, "Pour progresser"),
       h("div", { class: "lever-row" }, leversFor(r).map((l) => h("a", { href: "#programme", class: "lever" }, icon("arrow", 16), l.label))),
     ),
   );
 
-  // Historique (si activé)
-  if (state.settings.historyEnabled) {
-    const prev = [...state.history].reverse().find((s) => s.createdAt !== r.createdAt);
-    const box = h("section", { class: "card compact" });
-    if (prev) {
-      const cmp = compareSessions(prev, toStored(r));
-      box.appendChild(h("p", { class: "small" }, !cmp.comparable ? `Pas comparable au scan précédent : ${cmp.reason}` : cmp.changes.some((c) => c.kind === "changed") ? "Certaines mesures diffèrent du scan précédent (souvent la lumière ou l'angle)." : "Aucun changement mesurable depuis le scan précédent."));
-    }
-    const saveBtn = button(savedFor === r.createdAt ? "Enregistré" : "Enregistrer ce scan", async () => {
+  const allIds: MetricId[] = ["outerCanthusOffset", "eyeWidthDiff", "alarOffset", "mouthCornerOffset", "mouthLineAngle", "subnasaleMidline", "stomionMidline", "mentonMidline", "mouthNoseRatio"];
+  root.appendChild(
+    h("section", { class: "card compact" },
+      details(
+        "Détails",
+        h("ul", { class: "metric-rows" }, allIds.map((id) => {
+          const o = obs(id);
+          return h("li", null, h("span", null, METRICS[id].name), h("span", { class: "metric-row-right" }, valueText(o), dots(precisionOf(o))));
+        })),
+        h("p", { class: "small muted" }, "La symétrie résume les écarts gauche-droite ; 100 % n'est pas un idéal. Ce n'est pas une note de beauté. ≈ = marge d'erreur large (lumière, angle, distance)."),
+        sourceList([SOURCES.rhodes2006, SOURCES.ward2018]),
+      ),
+    ),
+  );
+
+  if (state.settings.historyEnabled && savedFor !== r.createdAt) {
+    const saveBtn = button("Garder ce scan dans l'historique", async () => {
       state.history = appendSession(state.history, toStored(r));
       if (await persistHistory()) {
         savedFor = r.createdAt;
-        saveBtn.replaceWith(h("p", { class: "muted small" }, icon("check", 14), " Enregistré (chiffré, sans photo)."));
+        saveBtn.replaceWith(h("p", { class: "muted small" }, icon("check", 14), " Enregistré, sans photo."));
       }
-    }, { variant: "ghost", icon: "check", disabled: savedFor === r.createdAt });
-    box.appendChild(saveBtn);
-    root.appendChild(box);
+    }, { variant: "quiet", icon: "check" });
+    root.appendChild(saveBtn);
   }
-
-  root.appendChild(
-    h("section", { class: "card compact" },
-      details("Ce que Reflet ne mesure pas", h("ul", { class: "excluded" }, EXCLUDED.map((e) => h("li", null, h("strong", null, e.name), h("span", null, e.reason))))),
-    ),
-  );
 
   root.appendChild(
     h("div", { class: "button-row" },
@@ -183,17 +172,4 @@ export function renderResults(root: HTMLElement): void {
       }, { variant: "quiet", icon: "trash" }),
     ),
   );
-}
-
-/** Raison courte, lisible sur une carte, du masquage d'une mesure. */
-export function shortReason(r?: string): string {
-  const t = (r ?? "").toLowerCase();
-  if (t.includes("près") || t.includes("distance")) return "Photo prise de près";
-  if (t.includes("expression") || t.includes("sourire")) return "Sourire ou bouche ouverte";
-  if (t.includes("tourné") || t.includes("de face")) return "Tête tournée";
-  if (t.includes("levée") || t.includes("baissée")) return "Tête levée ou baissée";
-  if (t.includes("lunettes")) return "Lunettes";
-  if (t.includes("fermés")) return "Yeux fermés";
-  if (t.includes("marge")) return "Marge d'erreur trop grande";
-  return "Non mesurable ici";
 }

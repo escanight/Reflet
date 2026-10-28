@@ -26,6 +26,22 @@ type Phase =
 
 let phase: Phase = { kind: cameraSupported() ? "camera" : "pick" };
 let stopCamera: (() => void) | null = null;
+/** Dernière photo non analysable automatiquement : proposée en repérage manuel, seulement si l'utilisateur le demande. */
+let manualCandidate: LoadedImage | null = null;
+
+function offerManual(img: LoadedImage | null): void {
+  if (manualCandidate && manualCandidate !== img) wipeImage(manualCandidate);
+  manualCandidate = img;
+}
+
+function manualLink(): HTMLElement | string {
+  if (!manualCandidate) return "";
+  const img = manualCandidate;
+  return h("div", { class: "button-row center" }, button("Placer les points moi-même", () => {
+    manualCandidate = null;
+    setPhase({ kind: "manual", image: img });
+  }, { variant: "quiet" }));
+}
 /** Jeton d'exécution : une analyse lancée puis abandonnée (changement d'écran) ne doit plus rien afficher. */
 let runId = 0;
 /** XP gagnée au dernier scan, affichée sur l'écran des résultats. */
@@ -40,6 +56,7 @@ function releaseCamera(): void {
 
 export function resetAnalyse(): void {
   runId++;
+  offerManual(null);
   releaseCamera();
   phase = { kind: cameraSupported() ? "camera" : "pick" };
 }
@@ -108,7 +125,7 @@ function renderCamera(root: HTMLElement, error?: string): void {
     },
   });
   stopCamera = cam.stop;
-  root.append(header("Scan"), guardNotice() ?? "", error ? notice("block", h("p", null, error)) : "", cam.element);
+  root.append(header("Scan"), guardNotice() ?? "", error ? notice("block", h("p", null, error)) : "", error ? manualLink() : "", cam.element);
 }
 
 function renderPick(root: HTMLElement, error?: string): void {
@@ -135,6 +152,7 @@ function renderPick(root: HTMLElement, error?: string): void {
     header("Scan"),
     guardNotice() ?? "",
     error ? notice("warn", h("p", null, error)) : "",
+    error ? manualLink() : "",
     zone,
     cameraSupported() ? h("div", { class: "button-row center" }, button("Réessayer la caméra", () => setPhase({ kind: "camera" }), { variant: "quiet", icon: "camera" })) : "",
   );
@@ -213,11 +231,12 @@ async function processFiles(files: File[], source: "camera" | "gallery"): Promis
     state.detector = forced ? { available: false, reason: "forcé (tests)" } : await checkAvailability();
   }
   if (state.detector?.available !== true) {
-    // Modèle absent : repérage manuel sur la première image.
     images.slice(1).forEach(wipeImage);
-    await sleep(500);
     if (!alive()) return wipeImage(images[0]);
-    return setPhase({ kind: "manual", image: images[0] });
+    // Crochet de test : passage direct au repérage manuel.
+    if ((window as Window & { __REFLET_FORCE_MANUAL__?: boolean }).__REFLET_FORCE_MANUAL__) return setPhase({ kind: "manual", image: images[0] });
+    offerManual(images[0]);
+    return setPhase({ kind: cameraSupported() && source === "camera" ? "camera" : "pick", error: "Le scan automatique n'est pas disponible sur cet appareil. Réessaie dans un instant." });
   }
 
   const distance = state.distancePref;
@@ -232,12 +251,26 @@ async function processFiles(files: File[], source: "camera" | "gallery"): Promis
     await loadDetector();
     for (let i = 0; i < images.length; i++) {
       setStep(images.length > 1 ? `Repérage du visage · image ${i + 1}/${images.length}` : "Repérage du visage…");
-      const img = images[i];
-      const det = await detect(img.canvas);
+      let img = images[i];
+      let det = await detect(img.canvas);
       if (!alive()) return images.forEach(wipeImage);
+      // Visage petit ou excentré : on réessaie sur des recadrages centrés, plus serrés.
+      for (const frac of [0.7, 0.5]) {
+        if (det.points && det.faceCount > 0) break;
+        const side = Math.min(img.width, img.height) * frac;
+        const crop = cropVariant(img, { x: (img.width - side) / 2, y: (img.height - side) / 2.6, w: side, h: side }, `c${frac}`);
+        const d2 = await detect(crop.canvas);
+        if (d2.points && d2.faceCount > 0) {
+          wipeImage(img);
+          images[i] = crop;
+          img = crop;
+          det = d2;
+        } else wipeImage(crop);
+      }
       if (!det.points || det.faceCount === 0) {
         faceless++;
-        wipeImage(img);
+        if (i === 0) offerManual(img);
+        else wipeImage(img);
         continue;
       }
       if (!shownMesh) {
@@ -261,9 +294,9 @@ async function processFiles(files: File[], source: "camera" | "gallery"): Promis
     }
   } catch (e) {
     console.error(e);
-    state.detector = { available: false, reason: "Le module automatique n'a pas pu démarrer sur cet appareil." };
     images.slice(1).forEach(wipeImage);
-    return setPhase({ kind: "manual", image: images[0] });
+    offerManual(images[0]);
+    return setPhase({ kind: cameraSupported() && source === "camera" ? "camera" : "pick", error: `Le scan a rencontré un problème (${e instanceof Error ? e.message : "erreur inconnue"}). Réessaie.` });
   }
 
   if (!alive()) return images.forEach(wipeImage);
@@ -298,11 +331,11 @@ async function processFiles(files: File[], source: "camera" | "gallery"): Promis
     return setPhase({ kind: cameraSupported() && source === "camera" ? "camera" : "pick", error: msg });
   }
   setStep("Mesure de la symétrie et des proportions…");
-  await sleep(350);
+  await sleep(200);
   setStep("Contrôle de la qualité…");
   // Durée minimale pour que l'animation soit lisible (le calcul réel est déjà fini).
   const elapsed = performance.now() - started;
-  if (elapsed < 1800) await sleep(1800 - elapsed);
+  if (elapsed < 1200) await sleep(1200 - elapsed);
   if (!alive()) return kept.forEach(wipeImage);
   finish(photos, kept, distance, sourcePhotos);
 }
