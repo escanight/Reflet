@@ -70,12 +70,13 @@ test("parcours complet : scan (galerie), résultat, programme, XP, suivi, suppre
   // Sans caméra disponible : écran de choix de photo.
   await page.getByTestId("file-gallery").first().setInputFiles(join(FIX, "visage-synthetique-1.jpg"));
   await placePoints(page, 0);
-  await page.getByRole("heading", { name: "Ton résultat" }).waitFor();
+  await page.getByRole("heading", { name: /Le verdict/ }).waitFor();
   await shot(page, "03-resultat-manuel");
   const text = await page.locator("#view").innerText();
   assert.match(text, /Symétrie/i);
   assert.match(text, /\/20/);
-  assert.match(text, /En chantier|Ça chauffe|Propre|Trop frais wola/);
+  assert.match(text, /Aïe aïe aïe frérot|Faut travailler ça mon reuf|Ça passe tranquille|Propre de fou wola|TROP BEAU WOLA/);
+  assert.match(await page.getByTestId("zone-yeux").innerText(), /Yeux/);
   for (const banned of [/\bsub ?[0-9]/i, /\bPSL\b/, /\bChad\b/i, /floco|zgeg|fdp/i]) assert.doesNotMatch(text, banned);
 
   // Programme
@@ -247,7 +248,7 @@ test("petite photo (295 px de large) : analysée, pas refusée", async () => {
     await page.mouse.click(box.x + pts[id].x * k * (box.width / W), box.y + pts[id].y * k * (box.width / W));
   }
   await page.getByRole("button", { name: "Valider les repères" }).click();
-  await page.getByRole("heading", { name: "Ton résultat" }).waitFor();
+  await page.getByRole("heading", { name: /Le verdict/ }).waitFor();
   const text = await page.locator("#view").innerText();
   assert.doesNotMatch(text, /trop petite|minuscule|trop loin/);
   assert.match(await page.getByTestId("note20").innerText(), /\d.*\/20/s);

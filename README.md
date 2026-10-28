@@ -91,6 +91,11 @@ Voir `docs/ARCHITECTURE.md` pour les décisions et `docs/VALIDATION.md` pour ce 
 
 ## Journal des corrections
 
+**2.3.0**
+- **Paliers de la note /20** : Aïe aïe aïe frérot 💀 (0–4), Faut travailler ça mon reuf 😭 (5–9), Ça passe tranquille 😂 (10–14), Propre de fou wola 🔥 (15–17), TROP BEAU WOLA 🗿🔥 (18–20).
+- **Notes /10 par zone** (yeux, nez, bouche, mâchoire/menton). Elles mesurent la symétrie de chaque zone, avec « ≈ » quand la mesure est approximative.
+- **Ton familier** partout : verdict, conseils photo, accueil, scan.
+
 **2.2.0**
 - **Note sur 20**, lisible d'un coup d'œil. Elle additionne :
   - **Photo /10** : lumière, netteté, angle, distance ;

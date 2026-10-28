@@ -174,10 +174,26 @@ test("note sur 20 = photo /10 + routine /10, paliers sans insulte", () => {
   assert.equal(routineScore10([h], wed), 5);
   const n = note20(82, [h], wed);
   assert.equal(n.total, 13);
-  assert.equal(n.tier.name, "Propre");
-  assert.equal(tierFor(4.5).name, "En chantier");
-  assert.equal(tierFor(5).name, "Ça chauffe");
-  assert.equal(tierFor(15).name, "Trop frais wola");
-  assert.equal(tierFor(20).name, "Trop frais wola");
+  assert.equal(n.tier.name, "Ça passe tranquille 😂");
+  assert.equal(tierFor(4.5).name, "Aïe aïe aïe frérot 💀");
+  assert.equal(tierFor(5).name, "Faut travailler ça mon reuf 😭");
+  assert.equal(tierFor(14.5).name, "Ça passe tranquille 😂");
+  assert.equal(tierFor(15).name, "Propre de fou wola 🔥");
+  assert.equal(tierFor(17.5).name, "Propre de fou wola 🔥");
+  assert.equal(tierFor(18).name, "TROP BEAU WOLA 🗿🔥");
+  assert.equal(tierFor(20).name, "TROP BEAU WOLA 🗿🔥");
   for (const t of TIERS) assert.doesNotMatch(t.name + t.line, /floco|zgeg|fdp/i);
+});
+
+import { zoneScores } from "../site/js/analysis/summary.js";
+
+test("notes /10 des zones : symétrie mesurée, 10 = parfaitement symétrique", () => {
+  const o = (id, est, level = "confirm") => ({ id, level, estimate: level === "uncertain" ? undefined : est, rawEstimate: est, low: est - 1, high: est + 1, photosUsed: 3, influences: [], disagreement: false });
+  const z = zoneScores([o("outerCanthusOffset", 0), o("eyeWidthDiff", 0), o("alarOffset", 2.4), o("subnasaleMidline", 2.4), o("mentonMidline", 6, "uncertain")]);
+  const by = Object.fromEntries(z.map((x) => [x.id, x]));
+  assert.equal(by.yeux.score, 10);
+  assert.equal(by.nez.score, 8);
+  assert.equal(by.menton.score, 5);
+  assert.equal(by.menton.precision, 1, "valeur indicative quand la marge d'erreur est large");
+  assert.equal(by.bouche.score, null);
 });

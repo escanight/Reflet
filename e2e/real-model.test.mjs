@@ -40,7 +40,7 @@ test("modèle réel : photo de la galerie → détection automatique → résult
   await page.locator(".scan-stage").waitFor({ timeout: 15000 });
   await page.waitForTimeout(700);
   await shot(page, "20-scan-animation-modele-reel");
-  await page.getByRole("heading", { name: "Ton résultat" }).waitFor({ timeout: 60000 });
+  await page.getByRole("heading", { name: /Le verdict/ }).waitFor({ timeout: 60000 });
   const text = await page.locator("#view").innerText();
   console.log("RÉSULTAT (galerie) :\n" + text.slice(0, 900));
   assert.equal(await page.locator("header[data-mode]").getAttribute("data-mode"), "auto");
@@ -52,6 +52,10 @@ test("modèle réel : photo de la galerie → détection automatique → résult
   const halves = await page.locator(".half-value").allInnerTexts();
   console.log("MOITIÉS :", halves.join(" | "));
   assert.ok(Number.parseFloat(halves[0].replace(",", ".")) > 0, "la photo réelle obtient une note photo");
+  const zones = await page.locator(".zone").allInnerTexts();
+  console.log("ZONES :", zones.map((z) => z.replace(/\n+/g, " ")).join(" | "));
+  assert.equal(zones.length, 4);
+  assert.ok(zones.filter((z) => /\/10/.test(z)).length >= 3, "yeux, nez, bouche, menton notés sur la photo réelle");
   await shot(page, "21-resultat-modele-reel");
   await page.getByText("Mesures du visage (détail)").click();
   await shot(page, "22-resultat-detail");
@@ -80,7 +84,7 @@ test("modèle réel : caméra (vidéo simulée) → rafale de 3 images → résu
   await page.waitForTimeout(800);
   await shot(page, "23-camera-modele-reel");
   await page.getByRole("button", { name: "Lancer le scan" }).click();
-  await page.getByRole("heading", { name: "Ton résultat" }).waitFor({ timeout: 60000 });
+  await page.getByRole("heading", { name: /Le verdict/ }).waitFor({ timeout: 60000 });
   const text = await page.locator("#view").innerText();
   console.log("RÉSULTAT (caméra) :\n" + text.slice(0, 600));
   assert.equal(await page.locator("header[data-mode]").getAttribute("data-mode"), "auto");

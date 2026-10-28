@@ -5,7 +5,7 @@ import { persistHistory, state } from "../../app/state.js";
 import { go } from "../../app/router.js";
 import { METRICS, SOURCES } from "../../analysis/metrics.js";
 import { formatValue, type MetricObservation } from "../../analysis/observations.js";
-import { leversFor, note20, qualityScore, symmetryIndex } from "../../analysis/summary.js";
+import { leversFor, note20, qualityScore, symmetryIndex, zoneScores } from "../../analysis/summary.js";
 import { appendSession, toStored } from "../../analysis/history.js";
 import { abandonCapture, lastScanXp } from "./analyse.js";
 import type { MetricId } from "../../analysis/geometry.js";
@@ -91,7 +91,7 @@ export function renderResults(root: HTMLElement): void {
 
   root.appendChild(
     h("header", { class: "scan-header row", "data-mode": r.mode, "data-photos": String(r.photos) },
-      h("h1", { id: "page-title", tabindex: "-1" }, "Ton résultat"),
+      h("h1", { id: "page-title", tabindex: "-1" }, "Le verdict 🗿"),
       lastScanXp > 0 ? h("span", { class: "xp-pill" }, `+${lastScanXp} XP`) : null,
     ),
   );
@@ -119,18 +119,26 @@ export function renderResults(root: HTMLElement): void {
 
   root.appendChild(
     h("section", { class: "halves" },
-      half("Photo", note.photo, quality.short ?? "Lumière, netteté, angle : parfait.", null),
-      half("Routine", note.routine, state.habits.length ? "Tes habitudes de la semaine." : "Ajoute des habitudes pour remplir cette moitié.", state.habits.length ? "#suivi" : "#programme"),
+      half("Photo 📸", note.photo, quality.short ?? "Photo nickel kho, rien à dire.", null),
+      half("Routine 💪", note.routine, state.habits.length ? (note.routine >= 8 ? "Machine, sah." : "Coche tes habitudes de la semaine kho.") : "Zéro habitude = zéro point. Crée ton programme kho.", state.habits.length ? "#suivi" : "#programme"),
     ),
   );
 
   root.appendChild(
-    h("p", { class: "sym-chip" }, "Symétrie du visage : ", h("strong", null, sym.value === null ? "—" : `${sym.value}\u00a0%`), " ", dots(sym.precision)),
+    h("section", { class: "zones" }, zoneScores(r.observations).map((z) =>
+      h("div", { class: "zone", "data-testid": `zone-${z.id}` },
+        h("span", { class: "zone-head" }, h("span", { "aria-hidden": "true" }, z.emoji), " ", z.label),
+        h("span", { class: "zone-value" }, z.score === null ? "—" : `${z.precision === 1 ? "≈\u00a0" : ""}${fmtNote(z.score)}`, z.score === null ? null : h("small", null, "/10")),
+        h("span", { class: "zone-line" }, dots(z.precision), " ", z.line),
+      ))),
+  );
+  root.appendChild(
+    h("p", { class: "sym-chip" }, "Symétrie globale : ", h("strong", null, sym.value === null ? "—" : `${sym.value}\u00a0%`), " ", dots(sym.precision)),
   );
 
   root.appendChild(
     h("section", { class: "levers" },
-      h("h2", { class: "section-title" }, "Pour monter ta note"),
+      h("h2", { class: "section-title" }, "Pour monter en flèche 📈"),
       h("div", { class: "lever-row" }, leversFor(r).map((l) => h("a", { href: "#programme", class: "lever" }, icon("arrow", 16), l.label))),
     ),
   );
@@ -139,7 +147,7 @@ export function renderResults(root: HTMLElement): void {
   root.appendChild(
     h("section", { class: "card compact" },
       details(
-        "Mesures du visage (détail)",
+        "Les chiffres pour les geeks 🤓",
         h("div", { class: "stat-grid" },
           metricCard("Yeux", "eyeWidthRatio", "œil / écart"),
           metricCard("Bas du visage", "lowerFaceRatio", "lèvre / menton"),
@@ -149,7 +157,7 @@ export function renderResults(root: HTMLElement): void {
           const o = obs(id);
           return h("li", null, h("span", null, METRICS[id].name), h("span", { class: "metric-row-right" }, valueText(o), dots(precisionOf(o))));
         })),
-        h("p", { class: "small muted" }, "La note sur 20 ne juge pas ton visage : elle additionne la qualité de ta photo et ta routine. La symétrie résume les écarts gauche-droite ; 100\u00a0% n'est pas un idéal. ≈ = marge d'erreur large."),
+        h("p", { class: "small muted" }, "Comment c'est calculé : la note /20 = ta photo /10 + ta routine /10. Les notes des zones = leur symétrie gauche-droite, mesurée par l'IA sur ta photo (personne n'est symétrique à 100\u00a0%, et c'est normal). L'IA ne juge pas ta beauté kho : ça, aucune machine ne sait le faire. « ≈ » = mesure approximative (lumière, angle, distance)."),
         sourceList([SOURCES.rhodes2006, SOURCES.ward2018]),
       ),
     ),
@@ -168,7 +176,7 @@ export function renderResults(root: HTMLElement): void {
 
   root.appendChild(
     h("div", { class: "button-row" },
-      button("Nouveau scan", () => {
+      button("Re-scanner 📸", () => {
         abandonCapture();
         go("analyse");
       }, { icon: "scan" }),

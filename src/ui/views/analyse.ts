@@ -223,7 +223,7 @@ async function processFiles(files: File[], source: "camera" | "gallery"): Promis
   images = images.filter((im) => (seen.has(im.fingerprint) ? (wipeImage(im), false) : (seen.add(im.fingerprint), true)));
 
   if (!alive()) return images.forEach(wipeImage);
-  setPhase({ kind: "scanning", image: images[0], step: "Détection du visage…" });
+  setPhase({ kind: "scanning", image: images[0], step: "On repère ta tête… 👀" });
   runId = myRun; // setPhase ne doit pas invalider cette exécution
   await new Promise((r) => requestAnimationFrame(() => r(null)));
 
@@ -328,12 +328,12 @@ async function processFiles(files: File[], source: "camera" | "gallery"): Promis
 
   if (!photos.length) {
     kept.forEach(wipeImage);
-    const msg = faceless ? "Aucun visage détecté. Place ton visage dans l'ovale, de face, bien éclairé." : lastError || "Analyse impossible.";
+    const msg = faceless ? "Ta tête est introuvable kho 😭 Mets-toi de face, bien éclairé, dans l'ovale." : lastError || "Analyse impossible.";
     return setPhase({ kind: cameraSupported() && source === "camera" ? "camera" : "pick", error: msg });
   }
-  setStep("Mesure de la symétrie et des proportions…");
+  setStep("On calcule ta note… 🧮");
   await sleep(200);
-  setStep("Contrôle de la qualité…");
+  setStep("Verdict dans 1 seconde… 🥁");
   // Durée minimale pour que l'animation soit lisible (le calcul réel est déjà fini).
   const elapsed = performance.now() - started;
   if (elapsed < 1200) await sleep(1200 - elapsed);

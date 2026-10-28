@@ -16,12 +16,12 @@ function welcome(next: () => void): HTMLElement {
     { class: "onboard-panel" },
     h("div", { class: "hero-mark", "aria-hidden": "true" }),
     h("h1", { tabindex: "-1", id: "page-title" }, "Reflet"),
-    h("p", { class: "lead" }, "Scanne ton visage. Suis ta routine. Monte en rang."),
+    h("p", { class: "lead" }, "Scanne ta tête, tiens ta routine, deviens TROP BEAU wola 🗿🔥"),
     h(
       "ul",
       { class: "feature-list" },
-      h("li", null, icon("scan", 20), h("span", null, h("strong", null, "Scan en 3 secondes"), h("small", null, "Symétrie, proportions, qualité photo"))),
-      h("li", null, icon("list", 20), h("span", null, h("strong", null, "Programme sur mesure"), h("small", null, "Peau, rasage, sommeil, prouvé par la science"))),
+      h("li", null, icon("scan", 20), h("span", null, h("strong", null, "Scan en 3 secondes"), h("small", null, "Ta note /20, tes yeux, ton nez, ta mâchoire"))),
+      h("li", null, icon("list", 20), h("span", null, h("strong", null, "Le programme glow-up"), h("small", null, "Peau, barbe, sommeil : ce qui marche vraiment, sah"))),
       h("li", null, icon("shield", 20), h("span", null, h("strong", null, "100 % sur ton téléphone"), h("small", null, "Aucune photo envoyée ni enregistrée"))),
     ),
     button("Commencer", () => {

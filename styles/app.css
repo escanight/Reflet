@@ -542,3 +542,10 @@ fieldset.choices legend { font-weight: 650; margin-bottom: .5rem; padding: 0; }
 .sym-chip { display: flex; align-items: center; gap: .35rem; justify-content: center; color: var(--muted); font-size: .9rem; margin: 0 0 .4rem; }
 .sym-chip strong { color: var(--text); }
 .card.compact .stat-grid { margin-top: .6rem; }
+.zones { display: grid; grid-template-columns: 1fr 1fr; gap: .7rem; margin-bottom: .8rem; }
+.zone { display: flex; flex-direction: column; gap: .3rem; padding: .85rem 1rem; border-radius: 20px; background: var(--surface); border: 1px solid var(--line); }
+.zone-head { font-weight: 700; font-size: .92rem; }
+.zone-value { font-size: 1.7rem; font-weight: 850; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.zone-value small { font-size: .9rem; color: var(--muted); font-weight: 700; margin-left: .1rem; }
+.zone-line { color: var(--muted); font-size: .8rem; line-height: 1.35; display: flex; gap: .35rem; align-items: center; flex-wrap: wrap; }
+.tier { font-size: 1.05rem; line-height: 1.25; }

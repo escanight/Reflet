@@ -55,7 +55,7 @@ export function renderDashboard(root: HTMLElement): void {
     root.appendChild(
       h("a", { href: "#analyse", class: "cta-card", "data-testid": "cta-scan" },
         h("div", { class: "cta-icon" }, icon("scan", 30)),
-        h("div", null, h("p", { class: "cta-title" }, "Lancer un scan"), h("p", { class: "cta-sub" }, note ? `Dernière note : ${note.total.toLocaleString("fr-FR")}/20 · ${note.tier.name}` : "3 secondes · 100\u00a0% sur ton téléphone")),
+        h("div", null, h("p", { class: "cta-title" }, "Scanne-toi kho 📸"), h("p", { class: "cta-sub" }, note ? `Dernière note : ${note.total.toLocaleString("fr-FR")}/20 · ${note.tier.name}` : "3 secondes, et tu sais où t'en es")),
       ),
     );
     if (r) root.appendChild(h("div", { class: "button-row" }, linkButton("Voir mon dernier résultat", "#resultats", { variant: "quiet", icon: "arrow" })));

@@ -48,19 +48,19 @@ export interface QualitySummary {
 }
 
 const SHORT_TIP: Record<string, string> = {
-  distance: "Pose le téléphone à 1,5 m, retardateur.",
-  lateralLight: "Mets-toi face à la lumière.",
-  blur: "Une photo plus nette.",
-  exposure: "Plus de lumière, sans flash.",
-  yaw: "Regarde droit l'objectif.",
-  pitch: "Objectif à hauteur des yeux.",
-  expression: "Visage neutre, bouche fermée.",
-  faceSize: "Rapproche ton visage.",
-  blink: "Yeux bien ouverts.",
-  roll: "Tête bien droite.",
-  glasses: "Retire tes lunettes.",
-  faces: "Seul dans le cadre.",
-  resolution: "Une image plus grande.",
+  distance: "Pose le tel à 1,5 m avec le retardateur kho, le selfie à bout de bras ça gonfle le nez 😭",
+  lateralLight: "Mets-toi face à la lumière, là t'as la moitié de la tête dans le noir 💀",
+  blur: "C'est flou frérot, tiens le tel droit.",
+  exposure: "Plus de lumière kho, on se croirait dans une cave.",
+  yaw: "Regarde l'objectif droit dans les yeux, pas de profil.",
+  pitch: "Tel à hauteur des yeux, pas en contre-plongée.",
+  expression: "Visage neutre kho, garde le sourire pour après 😂",
+  faceSize: "Rapproche-toi, on te voit à peine.",
+  blink: "Ouvre les yeux frérot 😭",
+  roll: "Tête droite, pas penchée.",
+  glasses: "Enlève les lunettes pour le scan.",
+  faces: "Seul dans le cadre kho.",
+  resolution: "Image trop petite.",
 };
 
 const WEIGHT: Record<string, number> = { block: 30, yaw: 15, pitch: 10, blur: 12, exposure: 12, lateralLight: 10, faceSize: 10, expression: 8, blink: 8, roll: 5, glasses: 6, distance: 10 };
@@ -105,10 +105,11 @@ export interface Tier {
 }
 
 export const TIERS: readonly Tier[] = [
-  { name: "En chantier", min: 0, line: "Tout reste à construire, et c'est le meilleur moment pour commencer." },
-  { name: "Ça chauffe", min: 5, line: "Les bases sont là, continue." },
-  { name: "Propre", min: 10, line: "Belle régularité, ça se voit." },
-  { name: "Trop frais wola", min: 15, line: "Photo nickel et routine en béton." },
+  { name: "Aïe aïe aïe frérot 💀", min: 0, line: "Safi, on repart de zéro kho. Photo propre + routine cochée, et ça remonte." },
+  { name: "Faut travailler ça mon reuf 😭", min: 5, line: "Sah y'a du taf, mais t'es sur la route." },
+  { name: "Ça passe tranquille 😂", min: 10, line: "Tranquille kho, encore un petit effort et ça décolle." },
+  { name: "Propre de fou wola 🔥", min: 15, line: "Sah c'est carré. Garde le rythme." },
+  { name: "TROP BEAU WOLA 🗿🔥", min: 18, line: "Photo de boss, routine de machine. Rien à dire wola." },
 ];
 
 export function tierFor(score20: number): Tier {
@@ -146,4 +147,55 @@ export function note20(quality100: number, habits: readonly Habit[], now = new D
   const routine = routineScore10(habits, now);
   const total = photo + routine;
   return { photo, routine, total, tier: tierFor(total) };
+}
+
+/* ------------------------------------------------------------------
+ * Notes /10 par zone : elles mesurent la SYMÉTRIE de la zone (écarts
+ * gauche-droite réellement mesurés), pas sa beauté.
+ * ------------------------------------------------------------------ */
+export interface ZoneScore {
+  id: "yeux" | "nez" | "bouche" | "menton";
+  label: string;
+  emoji: string;
+  /** Note /10, ou null si rien n'a pu être mesuré. */
+  score: number | null;
+  /** Mesure fiable (2–3) ou indicative (1). */
+  precision: 0 | 1 | 2 | 3;
+  line: string;
+}
+
+const ZONES: Array<{ id: ZoneScore["id"]; label: string; emoji: string; metrics: Array<[MetricId, number]> }> = [
+  { id: "yeux", label: "Yeux", emoji: "👁️", metrics: [["eyeWidthDiff", 0.5], ["outerCanthusOffset", 1]] },
+  { id: "nez", label: "Nez", emoji: "👃", metrics: [["alarOffset", 1], ["subnasaleMidline", 1]] },
+  { id: "bouche", label: "Bouche", emoji: "👄", metrics: [["mouthCornerOffset", 1], ["stomionMidline", 1], ["mouthLineAngle", 1.5]] },
+  { id: "menton", label: "Mâchoire / menton", emoji: "🗿", metrics: [["mentonMidline", 1]] },
+];
+
+export function zoneLine(score: number | null): string {
+  if (score === null) return "Pas mesurable sur cette photo kho.";
+  if (score >= 9) return "Symétrie de ouf wola 🔥";
+  if (score >= 7) return "Clean, sah.";
+  if (score >= 5) return "Ça passe tranquille.";
+  return "Sûrement la photo de travers, refais-la droit 😭";
+}
+
+export function zoneScores(obs: readonly MetricObservation[]): ZoneScore[] {
+  return ZONES.map((z) => {
+    const vals: number[] = [];
+    let prec: 0 | 1 | 2 | 3 = 3;
+    for (const [id, weight] of z.metrics) {
+      const o = obs.find((x) => x.id === id);
+      if (!o) continue;
+      const v = o.level !== "uncertain" && o.estimate !== undefined ? o.estimate : o.rawEstimate;
+      if (v === undefined) continue;
+      vals.push(Math.abs(v) * weight);
+      const p = o.level === "reliable" ? 3 : o.level === "confirm" ? 2 : 1;
+      prec = Math.min(prec, p) as 0 | 1 | 2 | 3;
+    }
+    if (!vals.length) return { id: z.id, label: z.label, emoji: z.emoji, score: null, precision: 0, line: zoneLine(null) };
+    const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+    // 0 % d'écart → 10/10 ; chaque 1,2 % d'écart (en % de la distance entre les yeux) retire 1 point.
+    const score = Math.round(Math.max(0, Math.min(10, 10 - mean / 1.2)) * 2) / 2;
+    return { id: z.id, label: z.label, emoji: z.emoji, score, precision: prec, line: zoneLine(score) };
+  });
 }
