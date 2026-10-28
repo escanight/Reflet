@@ -1,6 +1,6 @@
 // Assemble le site statique dans site/ après la compilation TypeScript (tsc → site/js).
 // Copie index.html, la feuille de style et, s'ils sont installés, les fichiers MediaPipe.
-import { cpSync, existsSync, mkdirSync, copyFileSync, writeFileSync, readdirSync, readFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, copyFileSync, writeFileSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -26,11 +26,21 @@ copyFileSync(join(root, "public", "manifest.webmanifest"), join(out, "manifest.w
 const walk = (dir, base = "") =>
   readdirSync(join(out, dir), { withFileTypes: true }).flatMap((d) =>
     d.isDirectory() ? walk(join(dir, d.name), `${base}${d.name}/`) : [`${base}${d.name}`]);
-const shell = ["./", "index.html", "app.css", "manifest.webmanifest", ...walk("js", "js/").sort(), ...walk("icons", "icons/")]
+// Code et styles dans des chemins propres à CHAQUE version (js-<empreinte>/, app-<empreinte>.css) :
+// une ancienne version restée en cache sur un téléphone ne peut plus jamais les remplacer.
+const codeHash = createHash("sha256");
+for (const f of walk("js", "js/").sort()) codeHash.update(f).update(readFileSync(join(out, f)));
+codeHash.update(readFileSync(join(out, "app.css")));
+const version = codeHash.digest("hex").slice(0, 12);
+for (const d of readdirSync(out)) if (/^js-[0-9a-f]{12}$/.test(d) || /^app-[0-9a-f]{12}\.css$/.test(d)) rmSync(join(out, d), { recursive: true, force: true });
+cpSync(join(out, "js"), join(out, `js-${version}`), { recursive: true });
+copyFileSync(join(out, "app.css"), join(out, `app-${version}.css`));
+writeFileSync(
+  join(out, "index.html"),
+  readFileSync(join(out, "index.html"), "utf8").replace('src="js/main.js"', `src="js-${version}/main.js"`).replace('href="app.css"', `href="app-${version}.css"`),
+);
+const shell = ["./", "index.html", `app-${version}.css`, "manifest.webmanifest", ...walk(`js-${version}`, `js-${version}/`).sort(), ...walk("icons", "icons/")]
   .map((f) => (f === "./" ? f : `./${f}`));
-const hash = createHash("sha256");
-for (const f of shell.filter((x) => x !== "./")) hash.update(readFileSync(join(out, f)));
-const version = hash.digest("hex").slice(0, 12);
 writeFileSync(join(out, "sw.js"), readFileSync(join(root, "public", "sw.js"), "utf8").replace("__BUILD_VERSION__", version).replace("__SHELL_FILES__", JSON.stringify(shell)));
 console.log(`Service worker généré (version ${version}, ${shell.length} fichiers).`);
 

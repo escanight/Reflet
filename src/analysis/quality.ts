@@ -220,13 +220,13 @@ export function evaluateQuality(px: PixelQuality, ctx: CaptureContext, rollDeg: 
   if (px.eyeDistancePx < T.faceEyeDistancePx.block) {
     issues.push({
       id: "faceSize", severity: "block", affects: "all",
-      message: "Le visage occupe trop peu de place dans l'image.",
+      message: "Le visage est trop loin ou trop petit dans l'image.",
       advice: "Zoome ×2 pour que ton visage remplisse l'ovale.",
     });
   } else if (px.eyeDistancePx < T.faceEyeDistancePx.warn) {
     issues.push({
       id: "faceSize", severity: "warn", affects: "all",
-      message: "Le visage est assez petit dans l'image : les repères sont moins précis.",
+      message: "Visage un peu petit : précision réduite.",
       advice: "Zoome un peu plus sur ton visage.",
     });
   }

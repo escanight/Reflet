@@ -4,7 +4,7 @@ import { persistHistory, loadHistory, saveSettings, saveProfile, state, wipeAll 
 import { go } from "../../app/router.js";
 import { persistentStorageAvailable } from "../../storage/store.js";
 
-export const APP_VERSION = "2.1.1";
+export const APP_VERSION = "2.1.2";
 
 let confirmWipe = false;
 

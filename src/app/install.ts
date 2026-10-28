@@ -58,7 +58,18 @@ export function setupInstall(): void {
   const secure = location.protocol === "https:" || location.hostname === "127.0.0.1" || location.hostname === "localhost";
   if (!isFramed() && secure && "serviceWorker" in navigator) {
     const hadController = !!navigator.serviceWorker.controller;
-    navigator.serviceWorker.register("sw.js", { scope: "./", updateViaCache: "none" }).then((reg) => reg.update()).catch(() => undefined);
+    navigator.serviceWorker.register("sw.js", { scope: "./", updateViaCache: "none" }).then((reg) => {
+      void reg.update();
+      // Une app installée est souvent seulement remise au premier plan, jamais rechargée :
+      // on vérifie donc les mises à jour à chaque retour dans l'app (au plus toutes les 30 s).
+      let last = Date.now();
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible" && Date.now() - last > 30_000) {
+          last = Date.now();
+          void reg.update().catch(() => undefined);
+        }
+      });
+    }).catch(() => undefined);
     // Nouvelle version installée : on recharge une seule fois pour l'utiliser tout de suite.
     let reloaded = false;
     navigator.serviceWorker.addEventListener("controllerchange", () => {

@@ -91,6 +91,11 @@ Voir `docs/ARCHITECTURE.md` pour les décisions et `docs/VALIDATION.md` pour ce 
 
 ## Journal des corrections
 
+**2.1.2**
+- Le code et les styles sont publiés dans des chemins propres à chaque version (`js-<empreinte>/`, `app-<empreinte>.css`) : une ancienne version en cache ne peut plus les remplacer.
+- Les mises à jour sont vérifiées à chaque retour dans l'app installée, avec rechargement automatique.
+- Messages de taille du visage plus courts.
+
 **2.1.1**
 - Plus aucune taille d'image minimale : seule la taille du visage compte, avec un refus seulement sous 18 px entre les yeux. Une petite photo nette passe.
 - Seuil de flou assoupli pour les webcams.
