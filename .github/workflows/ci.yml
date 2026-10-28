@@ -65,6 +65,7 @@ jobs:
       - name: Tests de bout en bout (dont modèle réel)
         env:
           REFLET_SCREENSHOTS: ci-screens
+        timeout-minutes: 15
         run: npm run e2e 2>&1 | tee test-e2e.log
 
       - name: Rapport (captures et journaux) sur la branche ci-report

@@ -27,6 +27,7 @@ test("modèle réel : photo de la galerie → détection automatique → résult
   const browser = await chromium.launch();
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
   const page = await ctx.newPage();
+  try {
   const errors = [];
   const external = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -53,7 +54,13 @@ test("modèle réel : photo de la galerie → détection automatique → résult
   await shot(page, "22-resultat-detail");
   assert.deepEqual(external, [], "aucune requête externe, modèle compris");
   assert.deepEqual(errors, []);
-  await browser.close();
+  } catch (e) {
+    await shot(page, "ECHEC-galerie").catch(() => {});
+    console.log("TEXTE À L'ÉCHEC :\n" + (await page.locator("#view").innerText().catch(() => "?")).slice(0, 800));
+    throw e;
+  } finally {
+    await browser.close();
+  }
 });
 
 test("modèle réel : caméra (vidéo simulée) → rafale de 3 images → résultat", { skip: !(ready && existsSync(VIDEO)) && "vidéo de test absente" }, async () => {
@@ -62,6 +69,7 @@ test("modèle réel : caméra (vidéo simulée) → rafale de 3 images → résu
   const page = await ctx.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
+  try {
   await page.goto(`${ORIGIN}/`);
   await onboard(page);
   await page.getByTestId("cta-scan").click();
@@ -75,5 +83,11 @@ test("modèle réel : caméra (vidéo simulée) → rafale de 3 images → résu
   assert.match(text, /images? · scan automatique/);
   await shot(page, "24-resultat-camera-modele-reel");
   assert.deepEqual(errors, []);
-  await browser.close();
+  } catch (e) {
+    await shot(page, "ECHEC-camera").catch(() => {});
+    console.log("TEXTE À L'ÉCHEC :\n" + (await page.locator("#view").innerText().catch(() => "?")).slice(0, 800));
+    throw e;
+  } finally {
+    await browser.close();
+  }
 });
