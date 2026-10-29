@@ -58,7 +58,7 @@ test("en-têtes de sécurité : CSP qui interdit toute connexion externe", async
   assert.match(res.body, /http-equiv="Content-Security-Policy"/);
 });
 
-test("parcours complet : scan (galerie), résultat, programme, XP, suivi, suppression", async () => {
+test("parcours complet : scan (galerie), résultat, conseils, suppression", async () => {
   const { page, ctx, external, errors } = await newPage();
   await page.goto(`${ORIGIN}/`);
   await shot(page, "01-accueil-onboarding");
@@ -84,21 +84,15 @@ test("parcours complet : scan (galerie), résultat, programme, XP, suivi, suppre
   await page.getByText("Je me rase de près").click();
   await page.getByText("J'ai souvent des boutons").click();
   await page.getByRole("button", { name: "Voir mon programme" }).click();
-  await page.getByRole("heading", { name: "Programme" }).waitFor();
+  await page.getByRole("heading", { name: "Conseils glow-up" }).waitFor();
   assert.match(await page.locator("#view").innerText(), /Technique de rasage/);
-  await page.getByRole("button", { name: /Suivre ces/ }).click();
-  await shot(page, "04-programme");
-
-  // Accueil : cocher une habitude donne de l'XP
+  await shot(page, "04-conseils");
   await page.getByTestId("nav-accueil").click();
-  await page.locator(".today-item").first().click();
-  await page.locator(".today-item.done").first().waitFor();
-  assert.match(await page.locator(".rank-card").innerText(), /60 XP/); // 30 (programme) + 10 (habitude) + 20 (scan de qualité)
-  await shot(page, "05-accueil-xp");
-
-  // Profil
+  await page.locator(".last-scan").waitFor();
+  assert.doesNotMatch(await page.locator(".last-scan").innerText(), /^0\s*\/20/, "la note du dernier scan est conservée");
+  await shot(page, "05-accueil");
   await page.getByTestId("nav-profil").click();
-  await page.getByRole("heading", { name: "Les rangs" }).waitFor();
+  await page.getByRole("heading", { name: "Profil" }).waitFor();
   await shot(page, "06-profil");
 
   // Stockage : jamais de photo ni de repère
@@ -158,7 +152,7 @@ test("affichage ordinateur : navigation latérale, sans erreur", async () => {
   await page.goto(`${ORIGIN}/`);
   await onboard(page);
   await page.locator(".brand").waitFor({ state: "visible" });
-  for (const r of ["programme", "suivi", "profil", "glossaire", "aide", "donnees"]) {
+  for (const r of ["programme", "profil", "glossaire", "aide", "donnees"]) {
     await page.goto(`${ORIGIN}/#${r}`);
     await page.locator("#page-title").waitFor();
   }

@@ -8,13 +8,12 @@ import { button, icon, linkButton, notice } from "../components.js";
 import { createLandmarker } from "../landmarker.js";
 import { COLORS } from "../overlay.js";
 import { createCamera, cameraSupported, CAMERA_ERROR_TEXT, galleryInput } from "../camera.js";
-import { analysesInLast24h, endCapture, logAnalysis, rewardScan, saveDistancePref, state } from "../../app/state.js";
+import { analysesInLast24h, endCapture, logAnalysis, saveDistancePref, state } from "../../app/state.js";
 import { go } from "../../app/router.js";
-import { weekKey } from "../../app/progress.js";
 import { cropVariant, loadImageFile, ImageInputError, wipeImage, type LoadedImage } from "../../image/input.js";
 import { checkAvailability, detect, loadDetector } from "../../analysis/detector.js";
+import { scanNote } from "../../analysis/summary.js";
 import { analyzePhoto, buildSession, InvalidPointsError, type PhotoAnalysis } from "../../analysis/observations.js";
-import { qualityScore } from "../../analysis/summary.js";
 import type { CaptureContext } from "../../analysis/quality.js";
 import type { Point, PointSet } from "../../analysis/points.js";
 
@@ -44,8 +43,6 @@ function manualLink(): HTMLElement | string {
 }
 /** Jeton d'exécution : une analyse lancée puis abandonnée (changement d'écran) ne doit plus rien afficher. */
 let runId = 0;
-/** XP gagnée au dernier scan, affichée sur l'écran des résultats. */
-export let lastScanXp = 0;
 
 const DECLARED = { facingCamera: true, mouthClosed: true, neutral: true, noGlasses: true };
 
@@ -84,7 +81,7 @@ export function renderAnalyse(root: HTMLElement): void {
   if (state.settings.adult !== true) {
     root.append(
       h("header", { class: "page-header" }, h("h1", { id: "page-title", tabindex: "-1" }, "Scan")),
-      h("div", { class: "card" }, h("p", null, "Le scan du visage est réservé aux 18 ans et plus. Ton programme d'habitudes t'attend."), h("div", { class: "button-row" }, linkButton("Mon programme", "#programme"))),
+      h("div", { class: "card" }, h("p", null, "Le scan du visage est réservé aux 18 ans et plus. Les conseils glow-up t'attendent."), h("div", { class: "button-row" }, linkButton("Mon programme", "#programme"))),
     );
     return;
   }
@@ -347,9 +344,8 @@ function finish(photos: PhotoAnalysis[], images: LoadedImage[], distance: Captur
   const sources = Math.min(sourcePhotos ?? usable.length, usable.length);
   state.result = buildSession(usable, distance, new Date(), { sourcePhotos: sources });
   state.result.blockedReasons = photos.filter((p) => p.blocked).flatMap((p) => p.issues.filter((i) => i.severity === "block").map((i) => i.message));
+  state.lastNote = scanNote(photos[0]);
   logAnalysis();
-  const q = qualityScore(photos);
-  lastScanXp = q.score >= 70 && usable.length && rewardScan(weekKey(new Date())) ? 20 : 0;
   announce("Analyse terminée.");
   phase = { kind: cameraSupported() ? "camera" : "pick" };
   go("resultats");

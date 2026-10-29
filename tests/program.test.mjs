@@ -1,10 +1,9 @@
-// Tests du moteur de recommandations, du suivi d'habitudes, de la validation
+// Tests du moteur de recommandations, de la note du scan, de la validation
 // des fichiers et du chiffrement local.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ADVICE, DEFAULT_PROFILE, WARNINGS } from "../site/js/recommendations/catalog.js";
 import { buildProgram, selectAdvice } from "../site/js/recommendations/engine.js";
-import { createHabit, toggleDone, toggleReserve, weekDays, weekProgress, weekStart, reserveUsed, weeksReached } from "../site/js/habits/tracker.js";
 import { checkFile, sniffFormat, fitSize, pixelFingerprint, MAX_FILE_BYTES } from "../site/js/image/validate.js";
 import { generateKey, seal, unseal } from "../site/js/storage/crypto.js";
 import { GLOSSARY } from "../site/js/content/glossary.js";
@@ -52,13 +51,11 @@ test("mineurs : notes adaptées (sommeil, alcool, acné)", () => {
   assert.match(notes, /parent/);
 });
 
-test("budget temps : au-delà, les gestes deviennent optionnels ; 3 habitudes au plus", () => {
+test("budget temps : au-delà, les gestes deviennent optionnels", () => {
   const p = { ...DEFAULT_PROFILE, minutesPerDay: 5, facialHair: "courte", skin: "seche", goals: ["peau", "rasage", "dents"] };
   const prog = buildProgram(p);
   const all = prog.sections.flatMap((s) => s.items);
   assert.ok(all.some((v) => v.optional));
-  assert.ok(prog.suggestedHabits.length <= 3);
-  assert.equal(prog.suggestedHabits[0].adviceId, "spf");
 });
 
 test("indices de l'analyse : le conseil photo est expliqué", () => {
@@ -67,34 +64,7 @@ test("indices de l'analyse : le conseil photo est expliqué", () => {
   assert.ok(photo.reason);
 });
 
-test("suivi : semaine du lundi, réserve limitée à 2, aucune série", () => {
-  const wed = new Date(2026, 9, 28); // mercredi 28 octobre 2026
-  assert.equal(weekStart(wed).getDay(), 1);
-  const days = weekDays(wed);
-  assert.equal(days[0], "2026-10-26");
-  assert.equal(days[6], "2026-11-01");
-  let h = createHabit("Test", 5, "Quand…", undefined, wed);
-  h = toggleDone(h, days[0]);
-  h = toggleDone(h, days[1]);
-  h = toggleReserve(h, days[2], wed);
-  h = toggleReserve(h, days[3], wed);
-  h = toggleReserve(h, days[4], wed); // refusé : 2 maximum
-  assert.equal(reserveUsed(h, wed), 2);
-  assert.ok(!h.reserve.includes(days[4]));
-  const p = weekProgress(h, wed);
-  assert.equal(p.done, 2);
-  assert.ok(!/série|échec|raté/i.test(p.message));
-  h = toggleDone(h, days[0]);
-  assert.equal(weekProgress(h, wed).done, 1);
-  assert.equal(weeksReached(h, wed), 0);
-});
 
-test("createHabit borne les valeurs saisies", () => {
-  const h = createHabit("x".repeat(200), 12, "y".repeat(500));
-  assert.equal(h.weeklyTarget, 7);
-  assert.equal(h.label.length, 80);
-  assert.equal(h.cue.length, 200);
-});
 
 test("validation des fichiers par signature binaire", () => {
   assert.equal(sniffFormat(new Uint8Array([0xff, 0xd8, 0xff, 0xe0])), "jpeg");
@@ -132,25 +102,8 @@ test("glossaire : chaque terme a un statut", () => {
   for (const t of GLOSSARY) assert.ok(t.status && t.text.length > 40, t.term);
 });
 
-import { computeXp, rankFor, RANKS, weekKey } from "../site/js/app/progress.js";
 import { symmetryIndex, qualityScore } from "../site/js/analysis/summary.js";
 
-test("XP et rangs : calcul à partir des actions, jamais du visage", () => {
-  const wed = new Date(2026, 9, 28);
-  let h = createHabit("Test", 2, "", undefined, new Date(2026, 9, 19));
-  h = toggleDone(toggleDone(h, "2026-10-20"), "2026-10-21"); // semaine précédente : objectif 2/2 atteint
-  h = toggleDone(h, "2026-10-26");
-  const xp = computeXp([h], ["2026-10-26", "2026-10-26"], true, wed);
-  assert.equal(xp.habits, 30);
-  assert.equal(xp.weeks, 50);
-  assert.equal(xp.scans, 20, "un scan récompensé une seule fois par semaine");
-  assert.equal(xp.program, 30);
-  assert.equal(xp.total, 130);
-  assert.equal(rankFor(0).rank.name, RANKS[0].name);
-  assert.equal(rankFor(130).rank.name, "Initié");
-  assert.equal(rankFor(99999).next, null);
-  assert.equal(weekKey(wed), "2026-10-26");
-});
 
 test("indice de symétrie : fourchette honnête, null si rien de mesurable", () => {
   assert.equal(symmetryIndex([]).value, null);
@@ -162,26 +115,24 @@ test("indice de symétrie : fourchette honnête, null si rien de mesurable", () 
   assert.equal(qualityScore([]).score, 0);
 });
 
-import { note20, tierFor, photoScore10, routineScore10, TIERS } from "../site/js/analysis/summary.js";
+import { scanNote, tierFor, TIERS } from "../site/js/analysis/summary.js";
 
-test("note sur 20 = photo /10 + routine /10, paliers sans insulte", () => {
-  assert.equal(photoScore10(82), 8);
-  assert.equal(photoScore10(87), 8.5);
-  assert.equal(routineScore10([]), 0);
-  const wed = new Date(2026, 9, 28);
-  let h = createHabit("A", 4, "", undefined, wed);
-  h = toggleDone(toggleDone(h, "2026-10-26"), "2026-10-27"); // 2/4 → 5/10
-  assert.equal(routineScore10([h], wed), 5);
-  const n = note20(82, [h], wed);
-  assert.equal(n.total, 13);
-  assert.equal(n.tier.name, "Ça passe tranquille 😂");
+test("note du scan /20 = 5 critères /4, paliers sans insulte", () => {
+  const photo = (issues) => ({ issues, blocked: issues.some((i) => i.severity === "block") });
+  const perfect = scanNote(photo([]));
+  assert.equal(perfect.total, 20);
+  assert.equal(perfect.tier.name, "TROP BEAU WOLA 🗿🔥");
+  const selfie = scanNote(photo([{ id: "distance", severity: "warn" }, { id: "expression", severity: "warn" }, { id: "lateralLight", severity: "warn" }]));
+  assert.equal(selfie.total, 14);
+  assert.equal(selfie.criteria.find((c) => c.id === "distance").points, 0);
+  assert.equal(selfie.tier.name, "Ça passe tranquille 😂");
+  const flou = scanNote(photo([{ id: "blur", severity: "block" }]));
+  assert.equal(flou.criteria.find((c) => c.id === "nettete").points, 0);
+  assert.equal(scanNote(undefined).total, 0);
   assert.equal(tierFor(4.5).name, "Aïe aïe aïe frérot 💀");
   assert.equal(tierFor(5).name, "Faut travailler ça mon reuf 😭");
-  assert.equal(tierFor(14.5).name, "Ça passe tranquille 😂");
   assert.equal(tierFor(15).name, "Propre de fou wola 🔥");
-  assert.equal(tierFor(17.5).name, "Propre de fou wola 🔥");
   assert.equal(tierFor(18).name, "TROP BEAU WOLA 🗿🔥");
-  assert.equal(tierFor(20).name, "TROP BEAU WOLA 🗿🔥");
   for (const t of TIERS) assert.doesNotMatch(t.name + t.line, /floco|zgeg|fdp/i);
 });
 

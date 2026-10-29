@@ -549,3 +549,20 @@ fieldset.choices legend { font-weight: 650; margin-bottom: .5rem; padding: 0; }
 .zone-value small { font-size: .9rem; color: var(--muted); font-weight: 700; margin-left: .1rem; }
 .zone-line { color: var(--muted); font-size: .8rem; line-height: 1.35; display: flex; gap: .35rem; align-items: center; flex-wrap: wrap; }
 .tier { font-size: 1.05rem; line-height: 1.25; }
+.criteria { display: flex; flex-direction: column; gap: .45rem; margin-bottom: .9rem; }
+.crit { display: grid; grid-template-columns: 1fr auto auto; gap: .2rem .7rem; align-items: center; padding: .7rem .9rem; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); }
+.crit-label { font-weight: 700; }
+.crit-bar { display: inline-flex; gap: 3px; }
+.seg { width: 16px; height: 8px; border-radius: 3px; background: #3a3f46; }
+.seg.on { background: var(--accent); }
+.crit.ok .seg.on { background: var(--ok); }
+.crit.ko .crit-pts { color: var(--danger); }
+.crit-pts { font-weight: 800; font-variant-numeric: tabular-nums; min-width: 2.2rem; text-align: right; }
+.crit-tip { grid-column: 1 / -1; color: var(--muted); font-size: .82rem; }
+.cta-card.big { padding: 1.6rem 1.3rem; margin-bottom: .9rem; }
+.last-scan { display: grid; grid-template-columns: auto 1fr auto; gap: .9rem; align-items: center; padding: .9rem 1rem; border-radius: 20px; background: var(--surface); border: 1px solid var(--line); color: var(--text); text-decoration: none; margin-bottom: 1rem; }
+.last-scan .last-note { font-size: 2rem; font-weight: 900; letter-spacing: -.03em; }
+.last-scan .last-note small { font-size: .9rem; color: var(--muted); }
+.last-scan span:nth-child(2) { display: flex; flex-direction: column; }
+.last-scan small { color: var(--muted); font-size: .8rem; }
+.last-scan > .icon { color: var(--muted); }

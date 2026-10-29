@@ -29,7 +29,7 @@ export const CATEGORY_LABEL: Record<Category, string> = {
   hebdo: "Routine hebdomadaire",
   soins: "Soins et hygiène",
   presentation: "Coiffure, barbe et présentation",
-  bienetre: "Habitudes de bien-être",
+  bienetre: "Bien-être",
 };
 
 export type Budget = "minimal" | "modere" | "confortable";
@@ -63,14 +63,6 @@ export const DEFAULT_PROFILE: Profile = {
   smoker: false,
 };
 
-export interface HabitTemplate {
-  label: string;
-  /** Nombre de jours visés par semaine (jamais 7/7 imposé). */
-  weeklyTarget: number;
-  /** Suggestion de déclencheur « si… alors… ». */
-  cue: string;
-}
-
 export interface Advice {
   id: string;
   category: Category;
@@ -82,7 +74,6 @@ export interface Advice {
   limits: string;
   sources: SourceLink[];
   minutes?: number;
-  habit?: HabitTemplate;
   applies?: (p: Profile) => boolean;
   /** Variante selon le budget déclaré. */
   budget?: Partial<Record<Budget, string>>;
@@ -115,9 +106,6 @@ const S = {
   guyuron: { label: "Guyuron et al. 2013 — jumeaux et tabac", url: "https://www.newswise.com/articles/face-it-twins-who-smoke-look-older-says-study-in-plastic-and-reconstructive-surgery" },
   spfAlcohol: { label: "Santé publique France — Repères alcool", url: "https://www.santepubliquefrance.fr/alcool/comment-reduire-les-risques-de-la-consommation-dalcool" },
   ward2018: { label: "Ward et al. 2018 — distorsion des selfies", url: "https://medicalresearch.com/?p=40302" },
-  lally: { label: "Lally et al. — formation des habitudes (synthèse)", url: "https://www.thebehavioralscientist.com/articles/how-long-to-form-a-habit" },
-  stawarz: { label: "Stawarz et al. 2015 — rappels et automatisme", url: "https://discovery.ucl.ac.uk/id/eprint/1468224/" },
-  reserve: { label: "UCLA Anderson Review — « jours de réserve »", url: "https://anderson-review.ucla.edu/emergency-reserves/" },
   juhl2018: { label: "Juhl et al. 2018 — produits laitiers et acné (méta-analyse)", url: "https://www.mdpi.com/2072-6643/10/8/1049/xml" },
 } satisfies Record<string, SourceLink>;
 
@@ -135,7 +123,6 @@ export const ADVICE: Advice[] = [
     limits: "L'essai de référence (Australie, adultes de moins de 55 ans) a mesuré 24 % de vieillissement en moins sur 4,5 ans ; son applicabilité aux peaux foncées (phototypes IV à VI) n'a pas été vérifiée.",
     sources: [S.hughes2013, S.aadSunscreen, S.aadSpots],
     minutes: 1,
-    habit: { label: "Écran solaire le matin", weeklyTarget: 5, cue: "Après m'être brossé les dents le matin, j'applique l'écran solaire." },
     budget: {
       minimal: "Tout écran SPF 30+ « large spectre » répond à la recommandation ; la marque n'est pas un critère.",
       modere: "Choisis une texture agréable (fluide, gel) : c'est celle que tu utiliseras vraiment.",
@@ -155,7 +142,6 @@ export const ADVICE: Advice[] = [
     limits: "Se laver plus souvent n'améliore pas la peau ; l'irritation peut elle-même provoquer des taches, surtout sur les peaux mates et foncées.",
     sources: [S.aadWash, S.aadSpots],
     minutes: 2,
-    habit: { label: "Nettoyage doux le soir", weeklyTarget: 5, cue: "Quand je rentre le soir, je me lave le visage avant de m'asseoir." },
   },
   {
     id: "moisturize", category: "quotidien", goal: "peau",
@@ -248,7 +234,6 @@ export const ADVICE: Advice[] = [
     evidence: "expert",
     limits: "Il n'existe pas de fréquence universelle ; ajustez selon la sensation du cuir chevelu.",
     sources: [S.aadHair],
-    habit: { label: "Lavage des cheveux selon mon rythme", weeklyTarget: 2, cue: "Les jours de sport, je me lave les cheveux à la douche qui suit." },
     applies: (p) => p.hair !== "tres-courts" || p.scalpOily,
   },
   {
@@ -279,7 +264,6 @@ export const ADVICE: Advice[] = [
     limits: "Le bénéfice du nettoyage interdentaire est jugé peu certain par Cochrane. Pas de blanchiment avant 18 ans ; au-delà de 0,1 % de peroxyde d'hydrogène, le blanchiment relève du dentiste.",
     sources: [S.nhsTeeth, S.ufsbd, S.cochraneFloss],
     minutes: 4,
-    habit: { label: "Brossage du soir, 2 minutes", weeklyTarget: 6, cue: "Avant d'éteindre la lumière, je me brosse les dents 2 minutes." },
   },
   {
     id: "sleep", category: "bienetre", goal: "sommeil",
@@ -292,7 +276,6 @@ export const ADVICE: Advice[] = [
     evidence: "etabli",
     limits: "Les études sur l'apparence sont petites : elles montrent que la privation de sommeil rend le visage plus fatigué et moins attrayant aux yeux d'inconnus, pas que dormir au-delà de son besoin embellit. Les conseils d'hygiène du sommeil relèvent de l'avis d'experts.",
     sources: [S.aasm, S.spfSleep, S.beautySleep, S.sundelin2017],
-    habit: { label: "Coucher à heure fixe (7 h de sommeil ou plus)", weeklyTarget: 5, cue: "Quand l'alarme « coucher » sonne, je pose le téléphone hors de la chambre." },
     minorNote: "Entre 13 et 18 ans, l'AASM recommande 8 à 10 heures de sommeil par nuit.",
   },
   {
@@ -306,7 +289,6 @@ export const ADVICE: Advice[] = [
     evidence: "etabli",
     limits: "L'activité physique est recommandée pour la santé ; aucune source ne montre qu'elle rend un visage plus attrayant. Reflet ne fixe aucun objectif de poids ni de « graisse du visage ».",
     sources: [S.who2020],
-    habit: { label: "Séance d'activité (30 min)", weeklyTarget: 3, cue: "Le lundi, mercredi et samedi, je marche 30 minutes après le repas." },
     minorNote: "Entre 5 et 17 ans, l'OMS recommande en moyenne 60 minutes d'activité par jour.",
   },
   {
@@ -353,19 +335,6 @@ export const ADVICE: Advice[] = [
     evidence: "etabli",
     limits: "À 30 cm, la base du nez paraît 29 à 30 % plus large qu'à 1,5 m. Cette distorsion vient de l'optique, pas de ton visage.",
     sources: [S.ward2018],
-  },
-  {
-    id: "habits", category: "hebdo", goal: "base",
-    title: "Comment Reflet suit tes habitudes",
-    objective: "Rendre les habitudes durables sans pression.",
-    how: [
-      "Objectifs hebdomadaires (par exemple 5 jours sur 7) avec 2 jours de réserve : un jour manqué ne casse rien.",
-      "Chaque habitude est rattachée à une routine existante (« Quand… alors… »).",
-      "Commencez par 3 habitudes au maximum ; ajoutez-en quand elles deviennent automatiques.",
-    ],
-    evidence: "plausible",
-    limits: "Il faut en moyenne 66 jours pour qu'une habitude devienne automatique, avec de grandes différences (18 à 254 jours) ; la règle des « 21 jours » est un mythe. Les rappels aident à répéter mais freinent l'automatisme : Reflet n'envoie aucune notification.",
-    sources: [S.lally, S.stawarz, S.reserve],
   },
 ];
 

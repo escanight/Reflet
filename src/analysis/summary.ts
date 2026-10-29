@@ -8,7 +8,6 @@
  */
 import type { MetricId } from "./geometry.js";
 import type { MetricObservation, PhotoAnalysis, SessionResult } from "./observations.js";
-import { weekProgress, type Habit } from "../habits/tracker.js";
 
 const OFFSETS: MetricId[] = ["outerCanthusOffset", "alarOffset", "mouthCornerOffset", "subnasaleMidline", "stomionMidline", "mentonMidline"];
 
@@ -93,9 +92,10 @@ export function leversFor(s: SessionResult): Array<{ adviceId: string; label: st
 }
 
 /* ------------------------------------------------------------------
- * Note sur 20 : photo /10 + routine /10. Elle ne note JAMAIS le visage :
- * seulement la qualité de la photo (ce que tu contrôles tout de suite)
- * et la régularité de ta routine (ce que tu contrôles dans la durée).
+ * Note du scan sur 20 : 5 critères de la PHOTO, chacun sur 4 points
+ * (lumière, netteté, cadrage, pose, distance & expression). Elle varie
+ * vraiment d'un scan à l'autre et dit quoi corriger. Elle ne note jamais
+ * la beauté du visage.
  * ------------------------------------------------------------------ */
 
 export interface Tier {
@@ -105,11 +105,11 @@ export interface Tier {
 }
 
 export const TIERS: readonly Tier[] = [
-  { name: "Aïe aïe aïe frérot 💀", min: 0, line: "Safi, on repart de zéro kho. Photo propre + routine cochée, et ça remonte." },
-  { name: "Faut travailler ça mon reuf 😭", min: 5, line: "Sah y'a du taf, mais t'es sur la route." },
-  { name: "Ça passe tranquille 😂", min: 10, line: "Tranquille kho, encore un petit effort et ça décolle." },
-  { name: "Propre de fou wola 🔥", min: 15, line: "Sah c'est carré. Garde le rythme." },
-  { name: "TROP BEAU WOLA 🗿🔥", min: 18, line: "Photo de boss, routine de machine. Rien à dire wola." },
+  { name: "Aïe aïe aïe frérot 💀", min: 0, line: "Safi kho, ce scan c'est un crime. Regarde les critères en rouge et refais-le." },
+  { name: "Faut travailler ça mon reuf 😭", min: 5, line: "Sah y'a du taf. Corrige un ou deux critères et ça remonte direct." },
+  { name: "Ça passe tranquille 😂", min: 10, line: "Tranquille kho, quelques réglages et c'est carré." },
+  { name: "Propre de fou wola 🔥", min: 15, line: "Sah c'est propre. Il manque presque rien." },
+  { name: "TROP BEAU WOLA 🗿🔥", min: 18, line: "Scan de boss, rien à redire wola." },
 ];
 
 export function tierFor(score20: number): Tier {
@@ -118,35 +118,46 @@ export function tierFor(score20: number): Tier {
   return t;
 }
 
-const half = (v: number) => Math.round(v * 2) / 2;
-
-/** Photo /10 depuis le score de qualité /100. */
-export function photoScore10(quality100: number): number {
-  return half(Math.max(0, Math.min(100, quality100)) / 10);
+export interface Criterion {
+  id: "lumiere" | "nettete" | "cadrage" | "pose" | "distance";
+  label: string;
+  points: number; // sur 4
+  tip: string | null;
 }
 
-/** Routine /10 : part moyenne de l'objectif hebdomadaire atteinte, toutes habitudes confondues. */
-export function routineScore10(habits: readonly Habit[], now = new Date()): number {
-  if (!habits.length) return 0;
-  const avg = habits.reduce((a, h) => {
-    const p = weekProgress(h, now);
-    return a + Math.min(1, p.done / Math.max(1, p.target));
-  }, 0) / habits.length;
-  return half(avg * 10);
+const CRITERIA: Array<{ id: Criterion["id"]; label: string; issues: Record<string, number>; tip: string }> = [
+  { id: "lumiere", label: "Lumière", issues: { exposure: 2, lateralLight: 2 }, tip: "Mets-toi face à une fenêtre, sans flash." },
+  { id: "nettete", label: "Netteté", issues: { blur: 2 }, tip: "Tiens le tel droit ou pose-le, c'est flou." },
+  { id: "cadrage", label: "Cadrage", issues: { faceSize: 2, faces: 4, resolution: 4 }, tip: "Ton visage doit remplir l'ovale, seul dans le cadre." },
+  { id: "pose", label: "Pose", issues: { yaw: 2, pitch: 2, roll: 1, blink: 1 }, tip: "Tête droite, regard dans l'objectif, yeux ouverts." },
+  { id: "distance", label: "Distance & expression", issues: { distance: 2, expression: 2, glasses: 1 }, tip: "Tel à 1,5 m avec le retardateur, visage neutre, sans lunettes." },
+];
+
+/** Critères calculés sur la photo source (la première de la séance). Un problème bloquant vaut 0 sur 4. */
+export function scanCriteria(photo: PhotoAnalysis | undefined): Criterion[] {
+  return CRITERIA.map((c) => {
+    if (!photo) return { id: c.id, label: c.label, points: 0, tip: c.tip };
+    let pts = 4;
+    for (const i of photo.issues) {
+      const w = c.issues[i.id];
+      if (w === undefined) continue;
+      pts -= i.severity === "block" ? 4 : w;
+    }
+    pts = Math.max(0, pts);
+    return { id: c.id, label: c.label, points: pts, tip: pts < 4 ? c.tip : null };
+  });
 }
 
 export interface Note20 {
-  photo: number;
-  routine: number;
   total: number;
+  criteria: Criterion[];
   tier: Tier;
 }
 
-export function note20(quality100: number, habits: readonly Habit[], now = new Date()): Note20 {
-  const photo = photoScore10(quality100);
-  const routine = routineScore10(habits, now);
-  const total = photo + routine;
-  return { photo, routine, total, tier: tierFor(total) };
+export function scanNote(photo: PhotoAnalysis | undefined): Note20 {
+  const criteria = scanCriteria(photo);
+  const total = criteria.reduce((a, c) => a + c.points, 0);
+  return { total, criteria, tier: tierFor(total) };
 }
 
 /* ------------------------------------------------------------------

@@ -4,14 +4,14 @@
  */
 import type { Availability } from "../analysis/detector.js";
 import type { StoredSession } from "../analysis/history.js";
+import type { Note20 } from "../analysis/summary.js";
 import type { PhotoAnalysis, SessionResult } from "../analysis/observations.js";
 import type { CaptureContext } from "../analysis/quality.js";
-import type { Habit } from "../habits/tracker.js";
 import type { LoadedImage } from "../image/input.js";
 import { wipeImage } from "../image/input.js";
 import { DEFAULT_PROFILE, type Profile } from "../recommendations/catalog.js";
-import { sanitizeHabits, sanitizeLog, sanitizeProfile, sanitizeSettings, sanitizeWeeks } from "../storage/schema.js";
-import { loadEncrypted, readJSON, saveEncrypted, wipeEverything, writeJSON } from "../storage/store.js";
+import { sanitizeLog, sanitizeProfile, sanitizeSettings } from "../storage/schema.js";
+import { loadEncrypted, readJSON, removeKey, saveEncrypted, wipeEverything, writeJSON } from "../storage/store.js";
 
 export interface Settings {
   onboarded: boolean;
@@ -34,13 +34,12 @@ export interface AppState {
   settings: Settings;
   profile: Profile;
   profileSet: boolean;
-  habits: Habit[];
   analysisLog: string[];
-  /** Semaines (clé du lundi) où un scan de bonne qualité a rapporté de l'XP. */
-  scanWeeks: string[];
   /** Distance de prise de vue choisie sur l'écran caméra. */
   distancePref: "near" | "far";
   capture: CaptureSession | null;
+  /** Note du dernier scan (sans photo), pour l'accueil et le retour au résultat. */
+  lastNote: Note20 | null;
   result: SessionResult | null;
   history: StoredSession[];
   detector: Availability | null;
@@ -48,15 +47,18 @@ export interface AppState {
 
 const DEFAULT_SETTINGS: Settings = { onboarded: false, adult: null, historyEnabled: false, noticeAcceptedAt: null };
 
+// Données de l'ancien système de routine (supprimé en 3.0) : effacées au démarrage.
+removeKey("habits");
+removeKey("scanWeeks");
+
 export const state: AppState = {
   settings: sanitizeSettings(readJSON<unknown>("settings", {})),
   profile: sanitizeProfile(readJSON<unknown>("profile", {})),
   profileSet: readJSON<unknown>("profileSet", false) === true,
-  habits: sanitizeHabits(readJSON<unknown>("habits", [])),
   analysisLog: sanitizeLog(readJSON<unknown>("analysisLog", [])),
-  scanWeeks: sanitizeWeeks(readJSON<unknown>("scanWeeks", [])),
   distancePref: readJSON<unknown>("distancePref", "near") === "far" ? "far" : "near",
   capture: null,
+  lastNote: null,
   result: null,
   history: [],
   detector: null,
@@ -74,10 +76,6 @@ export function saveProfile(p: Profile): void {
   writeJSON("profileSet", true);
 }
 
-export function saveHabits(list: Habit[]): void {
-  state.habits = list;
-  writeJSON("habits", list);
-}
 
 /** Journal des analyses (dates seulement), conservé 7 jours, pour les garde-fous d'usage. */
 export function logAnalysis(now = new Date()): void {
@@ -113,20 +111,13 @@ export async function wipeAll(): Promise<void> {
   state.settings = { ...DEFAULT_SETTINGS };
   state.profile = { ...DEFAULT_PROFILE };
   state.profileSet = false;
-  state.habits = [];
   state.analysisLog = [];
-  state.scanWeeks = [];
   state.distancePref = "near";
   state.result = null;
+  state.lastNote = null;
   state.history = [];
 }
 
-export function rewardScan(week: string): boolean {
-  if (state.scanWeeks.includes(week)) return false;
-  state.scanWeeks = [...state.scanWeeks, week].slice(-120);
-  writeJSON("scanWeeks", state.scanWeeks);
-  return true;
-}
 
 export function saveDistancePref(d: "near" | "far"): void {
   state.distancePref = d;

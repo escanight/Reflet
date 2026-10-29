@@ -5,14 +5,11 @@
  * type et dans les bornes prévues, sont conservées.
  */
 import { DEFAULT_PROFILE, type Goal, type Profile } from "../recommendations/catalog.js";
-import type { Habit } from "../habits/tracker.js";
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const oneOf = <T extends string>(v: unknown, allowed: readonly T[], fallback: T): T => (typeof v === "string" && (allowed as readonly string[]).includes(v) ? (v as T) : fallback);
 const bool = (v: unknown, fallback: boolean) => (typeof v === "boolean" ? v : fallback);
-const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const ISO = /^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/;
-const str = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
 
 export interface SettingsShape {
   onboarded: boolean;
@@ -53,31 +50,8 @@ export function sanitizeProfile(raw: unknown): Profile {
   };
 }
 
-export function sanitizeHabits(raw: unknown): Habit[] {
-  if (!Array.isArray(raw)) return [];
-  const out: Habit[] = [];
-  for (const x of raw.slice(0, 20)) {
-    if (!isObj(x) || typeof x.id !== "string" || typeof x.label !== "string") continue;
-    const target = Number(x.weeklyTarget);
-    const days = (v: unknown) => (Array.isArray(v) ? [...new Set(v.filter((d): d is string => typeof d === "string" && DATE.test(d)))].slice(-800) : []);
-    out.push({
-      id: str(x.id, 60),
-      label: str(x.label, 80),
-      weeklyTarget: Number.isInteger(target) && target >= 1 && target <= 7 ? target : 5,
-      cue: str(x.cue, 200),
-      adviceId: typeof x.adviceId === "string" ? str(x.adviceId, 40) : undefined,
-      createdAt: typeof x.createdAt === "string" && ISO.test(x.createdAt) ? x.createdAt : new Date(0).toISOString(),
-      done: days(x.done),
-      reserve: days(x.reserve),
-    });
-  }
-  return out;
-}
 
 export function sanitizeLog(raw: unknown): string[] {
   return Array.isArray(raw) ? raw.filter((d): d is string => typeof d === "string" && ISO.test(d)).slice(-200) : [];
 }
 
-export function sanitizeWeeks(raw: unknown): string[] {
-  return Array.isArray(raw) ? [...new Set(raw.filter((d): d is string => typeof d === "string" && DATE.test(d)))].slice(-120) : [];
-}

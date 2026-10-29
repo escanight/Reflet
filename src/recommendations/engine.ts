@@ -5,7 +5,7 @@
  * recommandation n'est tirée d'un trait du visage : les traits osseux ne
  * sont pas modifiables et ne justifient aucun conseil.
  */
-import { ADVICE, CATEGORY_LABEL, type Advice, type Category, type HabitTemplate, type Profile } from "./catalog.js";
+import { ADVICE, CATEGORY_LABEL, type Advice, type Category, type Profile } from "./catalog.js";
 
 export interface AdviceView {
   advice: Advice;
@@ -24,10 +24,9 @@ export interface ProgramSection {
 export interface Program {
   sections: ProgramSection[];
   dailyMinutes: number;
-  suggestedHabits: Array<HabitTemplate & { adviceId: string }>;
 }
 
-const ALWAYS = new Set(["spf", "teeth", "sleep", "photo", "habits"]);
+const ALWAYS = new Set(["spf", "teeth", "sleep", "photo"]);
 const DAILY_PRIORITY = ["spf", "teeth", "cleanse", "shave", "beard", "moisturize"];
 const ORDER: Category[] = ["quotidien", "hebdo", "soins", "presentation", "bienetre"];
 
@@ -86,12 +85,7 @@ export function buildProgram(profile: Profile, hints?: AnalysisHints): Program {
       .sort((x, y) => Number(!!y.reason) - Number(!!x.reason) || Number(x.optional) - Number(y.optional)),
   })).filter((s) => s.items.length > 0);
 
-  // Habitudes suggérées : 3 au maximum, celles liées aux objectifs d'abord.
-  const habitCandidates = chosen.filter((a) => a.habit && !optional.has(a.id));
-  habitCandidates.sort((a, b) => goalRank(profile, a) - goalRank(profile, b));
-  const suggestedHabits = habitCandidates.slice(0, 3).map((a) => ({ ...(a.habit as HabitTemplate), adviceId: a.id }));
-
-  return { sections, dailyMinutes: minutes, suggestedHabits };
+  return { sections, dailyMinutes: minutes };
 }
 
 function rank(id: string): number {
@@ -99,8 +93,3 @@ function rank(id: string): number {
   return i === -1 ? 99 : i;
 }
 
-function goalRank(p: Profile, a: Advice): number {
-  if (a.id === "spf") return 0;
-  if (a.goal !== "base" && p.goals.includes(a.goal)) return 1 + p.goals.indexOf(a.goal);
-  return 50;
-}

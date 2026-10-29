@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { sanitizeSettings, sanitizeProfile, sanitizeHabits, sanitizeLog } from "../site/js/storage/schema.js";
+import { sanitizeSettings, sanitizeProfile, sanitizeLog } from "../site/js/storage/schema.js";
 import { readDimensions, dimensionsAcceptable, sniffFormat } from "../site/js/image/validate.js";
 
 test("réglages corrompus ou malveillants : valeurs par défaut, aucune clé inconnue", () => {
@@ -24,20 +24,6 @@ test("profil : énumérations et bornes respectées", () => {
   assert.equal(p.adult, true); // valeur par défaut, pas la chaîne
 });
 
-test("habitudes : entrées invalides ignorées, tailles bornées", () => {
-  const h = sanitizeHabits([
-    null, 42, { id: 1, label: "x" },
-    { id: "a", label: "x".repeat(500), weeklyTarget: 99, cue: "y".repeat(900), done: ["2026-10-28", "pas une date", 5, "2026-10-28"], reserve: "nope" },
-  ]);
-  assert.equal(h.length, 1);
-  assert.equal(h[0].label.length, 80);
-  assert.equal(h[0].weeklyTarget, 5);
-  assert.equal(h[0].cue.length, 200);
-  assert.deepEqual(h[0].done, ["2026-10-28"]);
-  assert.deepEqual(h[0].reserve, []);
-  assert.deepEqual(sanitizeHabits("pas un tableau"), []);
-  assert.equal(sanitizeHabits(Array.from({ length: 100 }, (_, i) => ({ id: `h${i}`, label: "a" }))).length, 20);
-});
 
 test("journal : seules des dates ISO sont gardées", () => {
   assert.deepEqual(sanitizeLog(["2026-10-28T01:00:00.000Z", "x", 3]), ["2026-10-28T01:00:00.000Z"]);

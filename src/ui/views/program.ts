@@ -1,9 +1,8 @@
-import { clear, h, announce } from "../dom.js";
-import { button, card, checkbox, choiceGroup, details, evidenceBadge, icon, linkButton, notice, pageHeader, sourceList } from "../components.js";
-import { saveHabits, saveProfile, state } from "../../app/state.js";
+import { clear, h } from "../dom.js";
+import { button, card, checkbox, choiceGroup, details, evidenceBadge, icon, notice, pageHeader, sourceList } from "../components.js";
+import { saveProfile, state } from "../../app/state.js";
 import { buildProgram, type AdviceView } from "../../recommendations/engine.js";
 import { WARNINGS, type Goal, type Profile } from "../../recommendations/catalog.js";
-import { createHabit, MAX_ACTIVE_HABITS } from "../../habits/tracker.js";
 
 let editing = false;
 
@@ -16,35 +15,11 @@ export function renderProgram(root: HTMLElement): void {
   const hints = state.result ? { issueIds: state.result.issueIds } : undefined;
   const program = buildProgram(state.profile, hints);
 
-  root.appendChild(pageHeader("Programme", `${program.dailyMinutes} min par jour · touche un conseil pour le détail`));
-
-  const tracked = new Set(state.habits.map((x) => x.adviceId).filter(Boolean));
-  const toAdd = program.suggestedHabits.filter((s) => !tracked.has(s.adviceId));
-  if (toAdd.length && state.habits.length < MAX_ACTIVE_HABITS) {
-    root.appendChild(
-      card(
-        "Commence par ces 3",
-        h("p", { class: "muted small" }, "Peu d'habitudes, mais tenues : c'est ce qui marche (66 jours en moyenne pour un automatisme)."),
-        h("ul", { class: "habit-picks" }, toAdd.map((s) => h("li", null, icon("check", 16), h("span", null, h("strong", null, s.label), ` · ${s.weeklyTarget} jours sur 7`)))),
-        h(
-          "div",
-          { class: "button-row" },
-          button(toAdd.length > 1 ? `Suivre ces ${toAdd.length} habitudes` : "Suivre cette habitude", () => {
-            const room = MAX_ACTIVE_HABITS - state.habits.length;
-            const created = toAdd.slice(0, room).map((s) => createHabit(s.label, s.weeklyTarget, s.cue, s.adviceId));
-            saveHabits([...state.habits, ...created]);
-            announce(`${created.length} habitude${created.length > 1 ? "s" : ""} ajoutée${created.length > 1 ? "s" : ""} au suivi.`);
-            renderProgram(root);
-          }, { icon: "plus" }),
-          linkButton("Voir le suivi", "#suivi", { variant: "ghost" }),
-        ),
-      ),
-    );
-  }
+  root.appendChild(pageHeader("Conseils glow-up", "Touche un conseil pour le détail, sah"));
 
   for (const s of program.sections) {
     root.appendChild(h("h2", { class: "section-title" }, s.title));
-    for (const v of s.items) root.appendChild(adviceCard(v, tracked.has(v.advice.id), () => renderProgram(root)));
+    for (const v of s.items) root.appendChild(adviceCard(v));
   }
 
   root.appendChild(
@@ -57,19 +32,8 @@ export function renderProgram(root: HTMLElement): void {
   root.appendChild(h("p", { class: "fine" }, "Pas de diagnostic ni de médicament : pour un souci de peau, de cheveux ou de dents, vois un pharmacien, un médecin ou un dentiste."));
 }
 
-function adviceCard(v: AdviceView, tracked: boolean, refresh: () => void): HTMLElement {
+function adviceCard(v: AdviceView): HTMLElement {
   const a = v.advice;
-  const follow = a.habit
-    ? tracked
-      ? h("p", { class: "muted small" }, icon("check", 14), " Dans ton suivi")
-      : state.habits.length < MAX_ACTIVE_HABITS
-        ? button("Suivre (+10 XP/jour)", () => {
-            saveHabits([...state.habits, createHabit(a.habit!.label, a.habit!.weeklyTarget, a.habit!.cue, a.id)]);
-            announce("Habitude ajoutée au suivi.");
-            refresh();
-          }, { variant: "quiet", icon: "plus" })
-        : null
-    : null;
   return h(
     "details",
     { class: `advice${v.optional ? " optional" : ""}` },
@@ -84,7 +48,6 @@ function adviceCard(v: AdviceView, tracked: boolean, refresh: () => void): HTMLE
       v.notes.length ? h("div", { class: "notes" }, v.notes.map((n) => h("p", null, n))) : null,
       h("p", { class: "small muted" }, h("strong", null, "Limites : "), a.limits),
       sourceList(a.sources),
-      follow,
     ),
   );
 }

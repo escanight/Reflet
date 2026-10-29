@@ -97,13 +97,12 @@ test("stockage local corrompu ou modifié : l'application démarre quand même",
   page.on("pageerror", (e) => errors.push(e.message));
   await page.addInitScript(() => {
     localStorage.setItem("reflet:settings", '{"onboarded":true,"adult":true,"__proto__":{"x":1}}');
-    localStorage.setItem("reflet:habits", '[{"id":"a","label":"<img src=x onerror=alert(1)>","done":"cassé","weeklyTarget":"9"}]');
+    localStorage.setItem("reflet:analysisLog", '["<img src=x onerror=alert(1)>", 42]');
     localStorage.setItem("reflet:profile", "{pas du json");
   });
-  await page.goto(`${ORIGIN}/#suivi`);
+  await page.goto(`${ORIGIN}/#programme`);
   await page.locator("#page-title").waitFor();
   assert.equal(await page.locator("img[src=x]").count(), 0, "aucune injection HTML");
-  assert.match(await page.locator("#view").innerText(), /<img src=x onerror=alert\(1\)>/);
   assert.deepEqual(errors, []);
   await ctx.close();
 });

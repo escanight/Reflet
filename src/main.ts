@@ -9,7 +9,6 @@ import { renderDashboard } from "./ui/views/dashboard.js";
 import { renderAnalyse, resetAnalyse } from "./ui/views/analyse.js";
 import { renderResults } from "./ui/views/results.js";
 import { renderProgram } from "./ui/views/program.js";
-import { renderTracker } from "./ui/views/tracker.js";
 import { renderGlossary } from "./ui/views/glossary.js";
 import { renderData } from "./ui/views/data.js";
 import { renderHelp } from "./ui/views/help.js";
@@ -23,7 +22,6 @@ const ROUTES: Record<string, View> = {
   analyse: renderAnalyse,
   resultats: renderResults,
   programme: renderProgram,
-  suivi: renderTracker,
   glossaire: renderGlossary,
   donnees: renderData,
   aide: renderHelp,
@@ -32,13 +30,13 @@ const ROUTES: Record<string, View> = {
 
 const NAV: Array<{ route: string; label: string; icon: string; center?: boolean }> = [
   { route: "accueil", label: "Accueil", icon: "home" },
-  { route: "programme", label: "Programme", icon: "list" },
+  { route: "programme", label: "Conseils", icon: "list" },
   { route: "analyse", label: "Scan", icon: "scan", center: true },
-  { route: "suivi", label: "Suivi", icon: "calendar" },
+  { route: "glossaire", label: "Savoir", icon: "book" },
   { route: "profil", label: "Profil", icon: "user" },
 ];
 
-const ACTIVE_ALIAS: Record<string, string> = { resultats: "analyse", glossaire: "profil", donnees: "profil", aide: "profil" };
+const ACTIVE_ALIAS: Record<string, string> = { resultats: "analyse", donnees: "profil", aide: "profil" };
 
 export function currentRoute(): string {
   const r = location.hash.replace(/^#/, "");

@@ -49,9 +49,10 @@ test("modèle réel : photo de la galerie → détection automatique → résult
   const note = await page.getByTestId("note20").innerText();
   console.log("NOTE :", note.replace(/\n+/g, " | "));
   assert.match(note, /\/20/);
-  const halves = await page.locator(".half-value").allInnerTexts();
-  console.log("MOITIÉS :", halves.join(" | "));
-  assert.ok(Number.parseFloat(halves[0].replace(",", ".")) > 0, "la photo réelle obtient une note photo");
+  const crit = await page.locator(".crit").allInnerTexts();
+  console.log("CRITÈRES :", crit.map((c) => c.replace(/\n+/g, " ")).join(" | "));
+  assert.equal(crit.length, 5);
+  assert.ok(Number.parseInt(note, 10) > 0, "la photo réelle obtient une note");
   const zones = await page.locator(".zone").allInnerTexts();
   console.log("ZONES :", zones.map((z) => z.replace(/\n+/g, " ")).join(" | "));
   assert.equal(zones.length, 4);

@@ -4,7 +4,7 @@ import { persistHistory, loadHistory, saveSettings, saveProfile, state, wipeAll 
 import { go } from "../../app/router.js";
 import { persistentStorageAvailable } from "../../storage/store.js";
 
-export const APP_VERSION = "2.3.0";
+export const APP_VERSION = "3.0.0";
 
 let confirmWipe = false;
 
@@ -37,7 +37,6 @@ export function renderData(root: HTMLElement): void {
     h("li", null, h("strong", null, "Photos : "), "jamais enregistrées. Elles sont effacées de la mémoire quand tu quittes l'analyse."),
     h("li", null, h("strong", null, "Repères du visage : "), "jamais enregistrés."),
     h("li", null, h("strong", null, "Réponse sur l'âge et questionnaire : "), state.profileSet ? "enregistrés sur cet appareil." : "rien d'enregistré pour l'instant."),
-    h("li", null, h("strong", null, "Habitudes : "), `${state.habits.length} habitude${state.habits.length > 1 ? "s" : ""}, sur cet appareil.`),
     h("li", null, h("strong", null, "Historique des mesures : "), state.settings.historyEnabled ? `activé, ${state.history.length} séance${state.history.length > 1 ? "s" : ""}, chiffré (AES-GCM) sur cet appareil.` : "désactivé."),
     h("li", null, h("strong", null, "Journal d'usage : "), "les dates de tes scans des 7 derniers jours, pour afficher un message de soutien en cas d'usage très répété. Jamais transmis."),
   );
@@ -84,7 +83,7 @@ export function renderData(root: HTMLElement): void {
     ),
   );
 
-  const wipe = card("Tout supprimer", h("p", null, "Efface préférences, questionnaire, habitudes, historique et clé de chiffrement de cet appareil. Action irréversible."));
+  const wipe = card("Tout supprimer", h("p", null, "Efface préférences, questionnaire, historique et clé de chiffrement de cet appareil. Action irréversible."));
   if (!confirmWipe) {
     wipe.append(button("Supprimer toutes mes données", () => { confirmWipe = true; renderData(root); }, { variant: "danger", icon: "trash" }));
   } else {

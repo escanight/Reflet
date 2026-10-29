@@ -91,6 +91,12 @@ Voir `docs/ARCHITECTURE.md` pour les décisions et `docs/VALIDATION.md` pour ce 
 
 ## Journal des corrections
 
+**3.0.0**
+- **Système de routine supprimé** : plus de suivi d'habitudes, d'onglet Suivi, d'XP ni de rangs.
+- **Note /20 = note du scan.** 5 critères de la photo, notés chacun sur 4 : lumière, netteté, cadrage, pose, distance & expression. Chaque critère manqué affiche son conseil.
+- Les paliers et les notes /10 des zones (symétrie) sont conservés. La note du dernier scan reste affichée sur l'accueil.
+- Navigation : Accueil, Conseils, Scan, Savoir, Profil.
+
 **2.3.0**
 - **Paliers de la note /20** : Aïe aïe aïe frérot 💀 (0–4), Faut travailler ça mon reuf 😭 (5–9), Ça passe tranquille 😂 (10–14), Propre de fou wola 🔥 (15–17), TROP BEAU WOLA 🗿🔥 (18–20).
 - **Notes /10 par zone** (yeux, nez, bouche, mâchoire/menton). Elles mesurent la symétrie de chaque zone, avec « ≈ » quand la mesure est approximative.

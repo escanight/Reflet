@@ -5,9 +5,9 @@ import { persistHistory, state } from "../../app/state.js";
 import { go } from "../../app/router.js";
 import { METRICS, SOURCES } from "../../analysis/metrics.js";
 import { formatValue, type MetricObservation } from "../../analysis/observations.js";
-import { leversFor, note20, qualityScore, symmetryIndex, zoneScores } from "../../analysis/summary.js";
+import { leversFor, scanNote, symmetryIndex, zoneScores } from "../../analysis/summary.js";
 import { appendSession, toStored } from "../../analysis/history.js";
-import { abandonCapture, lastScanXp } from "./analyse.js";
+import { abandonCapture } from "./analyse.js";
 import type { MetricId } from "../../analysis/geometry.js";
 
 let savedFor: string | null = null;
@@ -87,12 +87,10 @@ export function renderResults(root: HTMLElement): void {
   }
   const photos = state.capture?.photos ?? [];
   const sym = symmetryIndex(r.observations);
-  const quality = qualityScore(photos);
 
   root.appendChild(
     h("header", { class: "scan-header row", "data-mode": r.mode, "data-photos": String(r.photos) },
       h("h1", { id: "page-title", tabindex: "-1" }, "Le verdict 🗿"),
-      lastScanXp > 0 ? h("span", { class: "xp-pill" }, `+${lastScanXp} XP`) : null,
     ),
   );
   if (r.blockedReasons?.length && !r.photos) {
@@ -100,7 +98,7 @@ export function renderResults(root: HTMLElement): void {
   }
 
   // Héros : la note sur 20 (photo + routine), jamais une note du visage.
-  const note = note20(quality.score, state.habits);
+  const note = photos.length ? scanNote(photos[0]) : state.lastNote ?? scanNote(undefined);
   const hero = h("section", { class: "hero-card" });
   const cap = state.capture;
   if (cap && cap.images.length && cap.photos.length) {
@@ -118,12 +116,14 @@ export function renderResults(root: HTMLElement): void {
   root.appendChild(hero);
 
   root.appendChild(
-    h("section", { class: "halves" },
-      half("Photo 📸", note.photo, quality.short ?? "Photo nickel kho, rien à dire.", null),
-      half("Routine 💪", note.routine, state.habits.length ? (note.routine >= 8 ? "Machine, sah." : "Coche tes habitudes de la semaine kho.") : "Zéro habitude = zéro point. Crée ton programme kho.", state.habits.length ? "#suivi" : "#programme"),
-    ),
+    h("section", { class: "criteria", "aria-label": "Détail de la note" }, note.criteria.map((c) =>
+      h("div", { class: `crit${c.points === 4 ? " ok" : c.points === 0 ? " ko" : ""}` },
+        h("span", { class: "crit-label" }, c.label),
+        h("span", { class: "crit-bar" }, [0, 1, 2, 3].map((i) => h("span", { class: i < c.points ? "seg on" : "seg" }))),
+        h("span", { class: "crit-pts" }, `${c.points}/4`),
+        c.tip ? h("span", { class: "crit-tip" }, c.tip) : null,
+      ))),
   );
-
   root.appendChild(
     h("section", { class: "zones" }, zoneScores(r.observations).map((z) =>
       h("div", { class: "zone", "data-testid": `zone-${z.id}` },
@@ -157,7 +157,7 @@ export function renderResults(root: HTMLElement): void {
           const o = obs(id);
           return h("li", null, h("span", null, METRICS[id].name), h("span", { class: "metric-row-right" }, valueText(o), dots(precisionOf(o))));
         })),
-        h("p", { class: "small muted" }, "Comment c'est calculé : la note /20 = ta photo /10 + ta routine /10. Les notes des zones = leur symétrie gauche-droite, mesurée par l'IA sur ta photo (personne n'est symétrique à 100\u00a0%, et c'est normal). L'IA ne juge pas ta beauté kho : ça, aucune machine ne sait le faire. « ≈ » = mesure approximative (lumière, angle, distance)."),
+        h("p", { class: "small muted" }, "Comment c'est calculé : la note /20 = 5 critères de ton scan notés sur 4 (lumière, netteté, cadrage, pose, distance & expression). Les notes des zones = leur symétrie gauche-droite, mesurée par l'IA sur ta photo (personne n'est symétrique à 100\u00a0%, et c'est normal). L'IA ne juge pas ta beauté kho : ça, aucune machine ne sait le faire. « ≈ » = mesure approximative (lumière, angle, distance)."),
         sourceList([SOURCES.rhodes2006, SOURCES.ward2018]),
       ),
     ),
@@ -193,10 +193,3 @@ export function fmtNote(v: number): string {
   return v.toLocaleString("fr-FR", { maximumFractionDigits: 1 });
 }
 
-function half(title: string, v: number, hint: string, href: string | null): HTMLElement {
-  const bar = h("span", { class: "half-bar" }, h("span", { class: "half-fill", "data-pct": String(v * 10) }));
-  const inner = [h("span", { class: "half-title" }, title), h("span", { class: "half-value" }, `${fmtNote(v)}/10`), bar, h("span", { class: "half-hint" }, hint)];
-  const el = href ? h("a", { href, class: "half" }, ...inner) : h("div", { class: "half" }, ...inner);
-  queueMicrotask(() => el.querySelectorAll<HTMLElement>(".half-fill").forEach((f) => (f.style.width = `${f.dataset.pct}%`)));
-  return el;
-}
