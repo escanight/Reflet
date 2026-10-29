@@ -1,0 +1,209 @@
+
+> reflet@3.0.0 e2e
+> npm run build && node --test --test-timeout=180000 --test-concurrency=1 e2e/*.test.mjs
+
+
+> reflet@3.0.0 build
+> tsc -p . && node scripts/assemble.mjs
+
+Fichiers MediaPipe copiés (VERSION.txt, face_landmarker.task, vision_bundle.mjs, wasm).
+Service worker généré (version 2c434b1d4dfd, 44 fichiers).
+Site assemblé dans site/.
+TAP version 13
+# Subtest: caméra intégrée : viseur, capture, caméra éteinte, passage au repérage
+ok 1 - caméra intégrée : viseur, capture, caméra éteinte, passage au repérage
+  ---
+  duration_ms: 2205.323002
+  type: 'test'
+  ...
+# Subtest: caméra : quitter l'écran l'éteint
+ok 2 - caméra : quitter l'écran l'éteint
+  ---
+  duration_ms: 373.250397
+  type: 'test'
+  ...
+# Subtest: visionneuse qui bloque la caméra : message clair, choix de photo toujours possible
+ok 3 - visionneuse qui bloque la caméra : message clair, choix de photo toujours possible
+  ---
+  duration_ms: 333.802384
+  type: 'test'
+  ...
+# Subtest: image piégée (en-tête 50 000 × 50 000) refusée avant décodage
+ok 4 - image piégée (en-tête 50 000 × 50 000) refusée avant décodage
+  ---
+  duration_ms: 260.261652
+  type: 'test'
+  ...
+# Subtest: stockage local corrompu ou modifié : l'application démarre quand même
+ok 5 - stockage local corrompu ou modifié : l'application démarre quand même
+  ---
+  duration_ms: 166.294742
+  type: 'test'
+  ...
+# Subtest: en-têtes de sécurité : CSP qui interdit toute connexion externe
+ok 6 - en-têtes de sécurité : CSP qui interdit toute connexion externe
+  ---
+  duration_ms: 83.371055
+  type: 'test'
+  ...
+# Subtest: parcours complet : scan (galerie), résultat, conseils, suppression
+ok 7 - parcours complet : scan (galerie), résultat, conseils, suppression
+  ---
+  duration_ms: 1430.124113
+  type: 'test'
+  ...
+# Subtest: moins de 18 ans : pas de scan du visage
+ok 8 - moins de 18 ans : pas de scan du visage
+  ---
+  duration_ms: 244.389605
+  type: 'test'
+  ...
+# Subtest: fichier non image refusé
+ok 9 - fichier non image refusé
+  ---
+  duration_ms: 273.057461
+  type: 'test'
+  ...
+# Subtest: quitter l'écran pendant l'analyse : rien ne revient s'afficher
+ok 10 - quitter l'écran pendant l'analyse : rien ne revient s'afficher
+  ---
+  duration_ms: 1796.046209
+  type: 'test'
+  ...
+# Subtest: affichage ordinateur : navigation latérale, sans erreur
+ok 11 - affichage ordinateur : navigation latérale, sans erreur
+  ---
+  duration_ms: 323.786727
+  type: 'test'
+  ...
+# Subtest: cadre restreint + stockage refusé : la galerie fonctionne
+ok 12 - cadre restreint + stockage refusé : la galerie fonctionne
+  ---
+  duration_ms: 413.659977
+  type: 'test'
+  ...
+# Subtest: orientation EXIF respectée (photo de téléphone tournée)
+ok 13 - orientation EXIF respectée (photo de téléphone tournée)
+  ---
+  duration_ms: 365.477056
+  type: 'test'
+  ...
+# Subtest: sans modèle automatique : pas de bascule forcée vers les 11 points, seulement sur demande
+ok 14 - sans modèle automatique : pas de bascule forcée vers les 11 points, seulement sur demande # SKIP modèle présent
+  ---
+  duration_ms: 0.447113
+  type: 'test'
+  ...
+# Subtest: photo choisie pendant que la caméra démarre : l'erreur de caméra n'écrase pas l'analyse
+ok 15 - photo choisie pendant que la caméra démarre : l'erreur de caméra n'écrase pas l'analyse
+  ---
+  duration_ms: 1201.178979
+  type: 'test'
+  ...
+# Subtest: petite photo (295 px de large) : analysée, pas refusée
+ok 16 - petite photo (295 px de large) : analysée, pas refusée
+  ---
+  duration_ms: 499.742946
+  type: 'test'
+  ...
+# console: INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+# RÉSULTAT (galerie) :
+# Le verdict 🗿
+# 16
+# /20
+# Propre de fou wola 🔥
+# Sah c'est propre. Il manque presque rien.
+# Lumière
+# 4/4
+# Netteté
+# 4/4
+# Cadrage
+# 4/4
+# Pose
+# 4/4
+# Distance & expression
+# 0/4
+# Tel à 1,5 m avec le retardateur, visage neutre, sans lunettes.
+# 👁️ Yeux
+# ≈ 10/10
+# Symétrie de ouf wola 🔥
+# 👃 Nez
+# 9,5/10
+# Symétrie de ouf wola 🔥
+# 👄 Bouche
+# ≈ 8,5/10
+# Clean, sah.
+# 🗿 Mâchoire / menton
+# 8,5/10
+# Clean, sah.
+# Symétrie globale :
+# 99 %
+# Pour monter en flèche 📈
+# Mieux te photographier
+# Écran solaire chaque matin
+# 7 h de sommeil ou plus
+# Les chiffres pour les geeks 🤓
+# Re-scanner 📸
+# Effacer
+# NOTE : 16 | /20 | Propre de fou wola 🔥 | Sah c'est propre. Il manque presque rien.
+# CRITÈRES : Lumière 4/4 | Netteté 4/4 | Cadrage 4/4 | Pose 4/4 | Distance & expression 0/4 Tel à 1,5 m avec le retardateur, visage neutre, sans lunettes.
+# ZONES : 👁️ Yeux ≈ 10/10 Symétrie de ouf wola 🔥 | 👃 Nez 9,5/10 Symétrie de ouf wola 🔥 | 👄 Bouche ≈ 8,5/10 Clean, sah. | 🗿 Mâchoire / menton 8,5/10 Clean, sah.
+# Subtest: modèle réel : photo de la galerie → détection automatique → résultat
+ok 17 - modèle réel : photo de la galerie → détection automatique → résultat
+  ---
+  duration_ms: 5268.615898
+  type: 'test'
+  ...
+# RÉSULTAT (caméra) :
+# Le verdict 🗿
+# 16
+# /20
+# Propre de fou wola 🔥
+# Sah c'est propre. Il manque presque rien.
+# Lumière
+# 4/4
+# Netteté
+# 4/4
+# Cadrage
+# 4/4
+# Pose
+# 4/4
+# Distance & expression
+# 0/4
+# Tel à 1,5 m avec le retardateur, visage neutre, sans lunettes.
+# 👁️ Yeux
+# ≈ 10/10
+# Symétrie de ouf wola 🔥
+# 👃 Nez
+# 9,5/10
+# Symétrie de ouf wola 🔥
+# 👄 Bouche
+# ≈ 8,5/10
+# Clean, sah.
+# 🗿 Mâchoire / menton
+# 8,5/10
+# Clean, sah.
+# Symétrie globale :
+# 99 %
+# Pour monter en flèche 📈
+# Mieux te photographier
+# Écran solaire chaque matin
+# 7 h de sommeil ou plus
+# Les chiffres pour les geeks 🤓
+# Re-scanner 📸
+# Effacer
+# Subtest: modèle réel : caméra (vidéo simulée) → rafale de 3 images → résultat
+ok 18 - modèle réel : caméra (vidéo simulée) → rafale de 3 images → résultat
+  ---
+  duration_ms: 6619.67105
+  type: 'test'
+  ...
+1..18
+# tests 18
+# suites 0
+# pass 17
+# fail 0
+# cancelled 0
+# skipped 1
+# todo 0
+# duration_ms 23354.069527

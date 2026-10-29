@@ -1,0 +1,261 @@
+
+> reflet@3.0.0 test
+> npm run build && node --test tests/*.test.mjs
+
+
+> reflet@3.0.0 build
+> tsc -p . && node scripts/assemble.mjs
+
+Fichiers MediaPipe copiés (VERSION.txt, face_landmarker.task, vision_bundle.mjs, wasm).
+Service worker généré (version 2c434b1d4dfd, 44 fichiers).
+Site assemblé dans site/.
+TAP version 13
+# Subtest: visage canonique : symétrie parfaite et rapports attendus
+ok 1 - visage canonique : symétrie parfaite et rapports attendus
+  ---
+  duration_ms: 3.210654
+  type: 'test'
+  ...
+# Subtest: invariance au roulis, à la translation et à l'échelle
+ok 2 - invariance au roulis, à la translation et à l'échelle
+  ---
+  duration_ms: 0.743917
+  type: 'test'
+  ...
+# Subtest: une asymétrie introduite est mesurée avec le bon signe
+ok 3 - une asymétrie introduite est mesurée avec le bon signe
+  ---
+  duration_ms: 0.342969
+  type: 'test'
+  ...
+# Subtest: normalizePairs remet gauche/droite dans l'ordre de l'image
+ok 4 - normalizePairs remet gauche/droite dans l'ordre de l'image
+  ---
+  duration_ms: 1.297378
+  type: 'test'
+  ...
+# Subtest: correspondance des indices MediaPipe sur le maillage canonique
+ok 5 - correspondance des indices MediaPipe sur le maillage canonique
+  ---
+  duration_ms: 0.677843
+  type: 'test'
+  ...
+# Subtest: sanityCheck refuse des repères incohérents
+ok 6 - sanityCheck refuse des repères incohérents
+  ---
+  duration_ms: 0.523706
+  type: 'test'
+  ...
+# Subtest: Monte-Carlo : déterministe, contient la vraie valeur, s'élargit avec σ
+ok 7 - Monte-Carlo : déterministe, contient la vraie valeur, s'élargit avec σ
+  ---
+  duration_ms: 24.57826
+  type: 'test'
+  ...
+# Subtest: netteté : un flou fait baisser l'indicateur
+ok 8 - netteté : un flou fait baisser l'indicateur
+  ---
+  duration_ms: 9.060757
+  type: 'test'
+  ...
+# Subtest: exposition et éclairage latéral
+ok 9 - exposition et éclairage latéral
+  ---
+  duration_ms: 0.861265
+  type: 'test'
+  ...
+# Subtest: contrôles : distance, lacet, plusieurs visages
+ok 10 - contrôles : distance, lacet, plusieurs visages
+  ---
+  duration_ms: 1.080354
+  type: 'test'
+  ...
+# Subtest: une photo bloquée ne produit aucune mesure
+ok 11 - une photo bloquée ne produit aucune mesure
+  ---
+  duration_ms: 15.268898
+  type: 'test'
+  ...
+# Subtest: analyzePhoto rejette des repères incohérents
+ok 12 - analyzePhoto rejette des repères incohérents
+  ---
+  duration_ms: 52.488224
+  type: 'test'
+  ...
+# Subtest: niveaux : une photo ne peut jamais être « fiable »
+ok 13 - niveaux : une photo ne peut jamais être « fiable »
+  ---
+  duration_ms: 60.685412
+  type: 'test'
+  ...
+# Subtest: niveaux : 3 photos concordantes peuvent être « fiables » ; discordantes, non
+ok 14 - niveaux : 3 photos concordantes peuvent être « fiables » ; discordantes, non
+  ---
+  duration_ms: 86.498711
+  type: 'test'
+  ...
+# Subtest: les mesures liées au nez sont masquées pour un selfie de près
+ok 15 - les mesures liées au nez sont masquées pour un selfie de près
+  ---
+  duration_ms: 69.314712
+  type: 'test'
+  ...
+# Subtest: mode manuel : les mesures sensibles à l'orientation restent « à confirmer »
+ok 16 - mode manuel : les mesures sensibles à l'orientation restent « à confirmer »
+  ---
+  duration_ms: 59.353279
+  type: 'test'
+  ...
+# Subtest: describe : aucune formulation de jugement
+ok 17 - describe : aucune formulation de jugement
+  ---
+  duration_ms: 73.013849
+  type: 'test'
+  ...
+# Subtest: historique : comparaison seulement dans des conditions identiques
+ok 18 - historique : comparaison seulement dans des conditions identiques
+  ---
+  duration_ms: 59.514429
+  type: 'test'
+  ...
+# Subtest: pose depuis la matrice (colonne par colonne)
+ok 19 - pose depuis la matrice (colonne par colonne)
+  ---
+  duration_ms: 0.230419
+  type: 'test'
+  ...
+# Subtest: la séance conserve les problèmes de prise de vue (sans les photos)
+ok 20 - la séance conserve les problèmes de prise de vue (sans les photos)
+  ---
+  duration_ms: 55.435888
+  type: 'test'
+  ...
+# Subtest: photo unique analysée sous 3 cadrages : jamais « fiable », valeurs affichées si stables
+ok 21 - photo unique analysée sous 3 cadrages : jamais « fiable », valeurs affichées si stables
+  ---
+  duration_ms: 59.273349
+  type: 'test'
+  ...
+# Subtest: petite photo (≈300 px) où le visage est net : acceptée
+ok 22 - petite photo (≈300 px) où le visage est net : acceptée
+  ---
+  duration_ms: 0.205903
+  type: 'test'
+  ...
+# Subtest: catalogue : chaque conseil a objectif, niveau de preuve, limites et sources
+ok 23 - catalogue : chaque conseil a objectif, niveau de preuve, limites et sources
+  ---
+  duration_ms: 1.45407
+  type: 'test'
+  ...
+# Subtest: catalogue : aucun conseil dangereux ni prescription
+ok 24 - catalogue : aucun conseil dangereux ni prescription
+  ---
+  duration_ms: 0.248373
+  type: 'test'
+  ...
+# Subtest: le socle est toujours présent
+ok 25 - le socle est toujours présent
+  ---
+  duration_ms: 0.32755
+  type: 'test'
+  ...
+# Subtest: règles de personnalisation : barbe, rasage, acné, tabac
+ok 26 - règles de personnalisation : barbe, rasage, acné, tabac
+  ---
+  duration_ms: 0.221533
+  type: 'test'
+  ...
+# Subtest: mineurs : notes adaptées (sommeil, alcool, acné)
+ok 27 - mineurs : notes adaptées (sommeil, alcool, acné)
+  ---
+  duration_ms: 0.612411
+  type: 'test'
+  ...
+# Subtest: budget temps : au-delà, les gestes deviennent optionnels
+ok 28 - budget temps : au-delà, les gestes deviennent optionnels
+  ---
+  duration_ms: 0.330405
+  type: 'test'
+  ...
+# Subtest: indices de l'analyse : le conseil photo est expliqué
+ok 29 - indices de l'analyse : le conseil photo est expliqué
+  ---
+  duration_ms: 0.216885
+  type: 'test'
+  ...
+# Subtest: validation des fichiers par signature binaire
+ok 30 - validation des fichiers par signature binaire
+  ---
+  duration_ms: 0.319505
+  type: 'test'
+  ...
+# Subtest: réduction de taille et empreinte
+ok 31 - réduction de taille et empreinte
+  ---
+  duration_ms: 5.519787
+  type: 'test'
+  ...
+# Subtest: chiffrement local AES-GCM : aller-retour et intégrité
+ok 32 - chiffrement local AES-GCM : aller-retour et intégrité
+  ---
+  duration_ms: 18.432163
+  type: 'test'
+  ...
+# Subtest: glossaire : chaque terme a un statut
+ok 33 - glossaire : chaque terme a un statut
+  ---
+  duration_ms: 0.326398
+  type: 'test'
+  ...
+# Subtest: indice de symétrie : fourchette honnête, null si rien de mesurable
+ok 34 - indice de symétrie : fourchette honnête, null si rien de mesurable
+  ---
+  duration_ms: 0.439439
+  type: 'test'
+  ...
+# Subtest: note du scan /20 = 5 critères /4, paliers sans insulte
+ok 35 - note du scan /20 = 5 critères /4, paliers sans insulte
+  ---
+  duration_ms: 0.554224
+  type: 'test'
+  ...
+# Subtest: notes /10 des zones : symétrie mesurée, 10 = parfaitement symétrique
+ok 36 - notes /10 des zones : symétrie mesurée, 10 = parfaitement symétrique
+  ---
+  duration_ms: 0.508989
+  type: 'test'
+  ...
+# Subtest: réglages corrompus ou malveillants : valeurs par défaut, aucune clé inconnue
+ok 37 - réglages corrompus ou malveillants : valeurs par défaut, aucune clé inconnue
+  ---
+  duration_ms: 2.250184
+  type: 'test'
+  ...
+# Subtest: profil : énumérations et bornes respectées
+ok 38 - profil : énumérations et bornes respectées
+  ---
+  duration_ms: 0.405465
+  type: 'test'
+  ...
+# Subtest: journal : seules des dates ISO sont gardées
+ok 39 - journal : seules des dates ISO sont gardées
+  ---
+  duration_ms: 0.348139
+  type: 'test'
+  ...
+# Subtest: dimensions lues dans l'en-tête (JPEG, PNG)
+ok 40 - dimensions lues dans l'en-tête (JPEG, PNG)
+  ---
+  duration_ms: 0.990246
+  type: 'test'
+  ...
+1..40
+# tests 40
+# suites 0
+# pass 40
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 732.552775

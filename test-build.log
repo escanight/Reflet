@@ -1,0 +1,7 @@
+
+> reflet@3.0.0 build
+> tsc -p . && node scripts/assemble.mjs
+
+Fichiers MediaPipe copiés (VERSION.txt, face_landmarker.task, vision_bundle.mjs, wasm).
+Service worker généré (version 2c434b1d4dfd, 44 fichiers).
+Site assemblé dans site/.

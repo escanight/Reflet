@@ -1,0 +1,8 @@
+
+> reflet@3.0.0 setup:vendor
+> node scripts/fetch-vendor.mjs
+
+@mediapipe/tasks-vision 0.10.21
+Bundle JavaScript et fichiers WASM copiés.
+Modèle enregistré (3.58 Mo, sha256 64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff).
+Relancez `npm run build` pour l'inclure dans site/.
